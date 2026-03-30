@@ -131,8 +131,8 @@ class ServicePlugin(Protocol):
     def mcp_tools(self) -> list[tuple[str, Callable]]:
         """(name, handler) pairs for MCP tools."""
 
-    def schema_ddl(self) -> str:
-        """DDL for tables this plugin owns."""
+    def schema_ddl(self) -> list[str]:
+        """DDL statements for tables this plugin owns."""
 
 
 class RiggsService:

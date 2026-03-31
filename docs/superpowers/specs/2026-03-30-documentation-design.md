@@ -18,9 +18,10 @@ Create user-facing documentation: a narrative tutorial and reference docs for co
 docs/
 ├── index.md              # Landing page with links
 ├── tutorial.md           # Narrative walkthrough
+├── the-ratchet.md        # How the system evolves over time
 ├── configuration.md      # Every config.toml field
 ├── cli-reference.md      # Every command with examples
-├── integration.md        # How Riggs connects to sibling tools
+├── integration.md        # How Riggs connects to sibling tools (incl. lackpy)
 ├── architecture.md       # Plugin system, data flow, schema
 └── mcp.md                # MCP resources and tools
 ```
@@ -31,9 +32,10 @@ Short landing page. One paragraph describing what agent-riggs does, then a list 
 - **Tutorial** — Start here. Walk through setup, ingestion, trust scores, ratchet, and metrics.
 - **CLI Reference** — Every command, every flag, example output.
 - **Configuration** — Complete config.toml reference.
-- **Integration** — How Riggs connects to kibitzer, blq, jetsam, fledgling.
+- **Integration** — How Riggs connects to kibitzer, lackpy, blq, jetsam, fledgling.
 - **Architecture** — Plugin system, data flow, DuckDB schema, design principles.
 - **MCP Server** — Resources and tools for agent access.
+- **The Ratchet** — How the system evolves: trust informs transitions, patterns become templates, failed delegations become new tools.
 
 ## tutorial.md
 
@@ -65,7 +67,9 @@ Narrative walkthrough. Each section shows exact commands and output, then explai
 
 12. **MCP Server** — How to access Riggs data from within a Claude Code session. The `riggs://` resources. The agent-callable tools. Read-only by design.
 
-13. **What's Next** — Tuning thresholds in config.toml. Installing the full suite. Using MotherDuck for sharing.
+13. **The Ratchet in Action** — Connect the dots: how the session data you just generated would, over time, produce ratchet candidates. How a lackpy template promotion works. How a tool gap gets identified. Point to `the-ratchet.md` for the full picture.
+
+14. **What's Next** — Tuning thresholds in config.toml. Installing the full suite. Integrating with lackpy for delegation traces. Using MotherDuck for sharing.
 
 ## configuration.md
 
@@ -143,10 +147,56 @@ Per-tool section:
 - **Writes:** Nothing.
 - **When absent:** Commit pattern analysis unavailable. Everything else works.
 
+### lackpy
+- **Reads:** Execution traces from lackpy delegations (program, kit, grade, generation_tier, tool calls, success/failure, duration)
+- **Writes:** Template registrations — when agent-riggs promotes a pattern, it registers it as a lackpy Tier 0 template so future identical intents skip model inference entirely.
+- **Ratchet role:** Three distinct feedback loops:
+  1. **Trace audit** — every lackpy execution produces a structured trace that feeds the trust engine and failure stream. Generation tier (template vs rules vs ollama vs anthropic) directly measures computation channel fraction.
+  2. **Template promotion** — frequent, successful delegation patterns graduate from model inference to deterministic templates. This IS the ratchet turning — the system gets faster and cheaper over time.
+  3. **Tool gap identification** — repeated delegation failures in a domain are a demand signal. Agent-riggs surfaces these as a new candidate type: "lackpy needs a tool for X." This is how the tool ecosystem grows.
+- **When absent:** Delegation trace analysis unavailable. Template promotion disabled. Trust and ratchet still work from other sources.
+
 ### Fledgling
 - **Reads:** Fledgling access log (conversation analytics, tool usage)
 - **Writes:** Nothing.
 - **When absent:** Conversation analytics unavailable. Everything else works.
+
+## the-ratchet.md
+
+The conceptual centerpiece — explains how the entire system evolves over time. This is the document that makes agent-riggs make sense as more than a metrics dashboard.
+
+### Sections
+
+1. **What is the ratchet?** — The system only tightens. Patterns that work get crystallized. Boundaries that get violated get reinforced. Tools that are needed get created. The human decides when and what, but the system identifies the candidates.
+
+2. **Three feedback loops**
+
+   **Loop 1: Trust-informed transitions** (within a session)
+   - Agent behavior → trust score → EWMA → transition recommendation → kibitzer acts
+   - Timescale: per-turn. Takes effect immediately.
+   - Example: 5 consecutive failures → trust_1 drops below 0.3 → Riggs recommends tightening → kibitzer switches to debug mode.
+
+   **Loop 2: Pattern promotion** (across sessions)
+   - Bash commands / lackpy delegations → frequency + success tracking → ratchet candidate → human promotes → config change or template registration
+   - Timescale: days/weeks. Takes effect next session.
+   - Two sub-types:
+     - **Tool promotion**: `grep -rn 'def '` used 89 times across 23 sessions → promote fledgling interceptor from observe to suggest
+     - **Template promotion**: `lackpy delegate "find callers of X"` succeeds 47 times → register as Tier 0 template, skip model inference forever
+
+   **Loop 3: Tool gap identification** (across sessions)
+   - Repeated delegation failures in a domain → "lackpy needs a tool for X" → human creates or installs tool → gap closes
+   - Timescale: weeks/months. Changes the tool ecosystem itself.
+   - Example: lackpy repeatedly fails to fulfill "check test coverage for module X" → agent-riggs surfaces: "delegation_failure in coverage domain, 12 failures across 8 sessions" → human adds a coverage tool to lackpy's toolbox.
+
+3. **The ratchet across the suite** — Table showing each tool, what ratchet fuel it produces, what ratchet turn it enables (from the README spec).
+
+4. **Measuring the ratchet** — How to read `agent-riggs metrics` to see if the ratchet is turning:
+   - Self-service ratio going up = structured tools replacing bash
+   - Computation channel fraction going down = templates replacing model calls
+   - Debug mode percentage going down = fewer sessions going wrong
+   - Ratchet velocity = promotions per month
+
+5. **When the ratchet doesn't turn** — What it means when metrics plateau. When to review configuration. When the issue is the tool ecosystem, not the agent.
 
 ## architecture.md
 

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-riggs"
-version = "0.1.0"
+version = "0.1.1"
 description = "Cross-session memory and analysis layer for the Rigged tool suite"
 requires-python = ">=3.11"
 license = "MIT"
@@ -16,6 +16,7 @@ keywords = ["claude-code", "mcp", "agent", "trust", "ratchet", "duckdb"]
 dependencies = [
     "click>=8.1",
     "duckdb>=1.0",
+    "pytz>=2024.1",
     "mcp[cli]>=1.0",
     "tomli-w>=1.0",
 ]

@@ -198,3 +198,193 @@ In our second session, trust_1 hit 0.24 — below the tighten threshold. If kibi
 This is how Riggs and kibitzer work together: Riggs observes across sessions and recommends. Kibitzer acts within the session. Riggs never enforces directly — it informs kibitzer's rules.
 
 All thresholds are configurable in `.riggs/config.toml` under `[trust]`. See [Configuration](configuration.md) for details.
+
+## 8. Ratchet Candidates
+
+After enough sessions accumulate, `agent-riggs ratchet candidates` identifies patterns that recur across sessions. There are two types:
+
+**Tool promotion candidates** — Bash patterns that have a structured alternative:
+
+```
+agent-riggs ratchet candidates
+```
+
+```
+  [tool_promotion] bash-to-finddefinitions
+    Graduate FindDefinitions interceptor
+    Evidence: {'frequency': 89, 'sessions': 23, 'success_rate': 0.97}
+
+  [tool_promotion] bash-to-blq-run-test
+    Graduate blq run test interceptor
+    Evidence: {'frequency': 134, 'sessions': 41, 'success_rate': 0.91}
+```
+
+These say: "the agent keeps using `grep` for definition searches when fledgling's FindDefinitions exists. It works 97% of the time across 23 sessions. Maybe it's time to nudge the agent toward the structured tool."
+
+**Constraint candidates** — Repeated failures at the same boundary:
+
+```
+  [constraint_promotion] edit_failure-Edit-implement
+    Repeated edit_failure on Edit in implement mode — review configuration or add documentation
+    Evidence: {'occurrences': 28, 'sessions_affected': 15, 'severity': 'systemic'}
+```
+
+This says: "the agent keeps trying to edit files and failing with 'old_string not found'. This happens in implement mode across 15 sessions. The agent might need guidance in CLAUDE.md, or the edit approach needs rethinking."
+
+With only our 2 tutorial sessions, you won't see candidates yet — the default thresholds require at least 5 occurrences across 3 sessions. But the pattern is clear: Riggs watches what happens, and when it sees the same thing enough times, it raises its hand.
+
+## 9. Promoting and Rejecting
+
+When a candidate appears and you agree with the recommendation:
+
+```bash
+agent-riggs ratchet promote bash-to-finddefinitions --reason "agents should use structured search"
+```
+
+What happens:
+- The decision is recorded in `ratchet_decisions` with the evidence and your reason
+- For tool promotions: the corresponding kibitzer interceptor gets graduated (e.g., from `observe` to `suggest`)
+- For lackpy template promotions: the pattern is registered as a Tier 0 template, skipping model inference for future identical intents
+
+If you disagree:
+
+```bash
+agent-riggs ratchet reject bash-to-finddefinitions --reason "agents need grep for non-definition searches too"
+```
+
+Rejections are tracked. If conditions change (the pattern keeps recurring, the success rate goes up), the candidate can reappear.
+
+View all decisions:
+
+```bash
+agent-riggs ratchet history
+```
+
+Every promotion and rejection is recorded with timestamp, evidence, and reason — a complete audit trail of how your system evolved.
+
+## 10. Metrics Dashboard
+
+```bash
+agent-riggs metrics
+```
+
+```
+RATCHET METRICS (0 sessions)
+
+  Ratchet velocity:        0 promotions
+  Self-service ratio:      0% structured
+  Computation channel %:   0%
+  Trust trajectory:        1.00 -> 0.91
+  Failure rate:            0%
+
+  Mode distribution:
+    implement: 100%
+```
+
+What each metric means:
+
+| Metric | What it measures | Good direction |
+|--------|-----------------|----------------|
+| **Ratchet velocity** | Promotions per period | Up (system is evolving) |
+| **Self-service ratio** | Fraction of tool calls using structured tools vs bash | Up |
+| **Computation channel %** | Fraction of calls at computation level 4+ (model inference) | Down |
+| **Trust trajectory** | trust_5 at start vs end of period | Improving (going up) |
+| **Failure rate** | Failures / total turns | Down |
+| **Mode distribution** | Time spent in each mode | Less debug, more implement |
+
+Over time, you want to see: self-service ratio climbing, computation channel fraction declining, debug mode percentage shrinking. That's the ratchet turning — the system is getting better at using structured tools and spending less time in crisis.
+
+Use `--period` to change the analysis window:
+
+```bash
+agent-riggs metrics --period 7    # last 7 days
+agent-riggs metrics --period 90   # last quarter
+```
+
+## 11. Session Briefing
+
+When you start a new session or come back after being away:
+
+```bash
+agent-riggs brief
+```
+
+```
+PROJECT BRIEFING: your-project
+
+Trust baseline: 0.98
+Last session: sess-tutorial-2, 4 turns, trust 0.24
+Known issues:
+  - failure (4 occurrences)
+Active ratchet candidates: 0
+```
+
+The briefing composes data from trust, ratchet, and metrics into a quick summary. It's also available as an MCP resource (`riggs://briefing`) that can be included in the system prompt automatically.
+
+## 12. MCP Server
+
+When the Riggs MCP server is running, agents can access trust data and metrics during a session without CLI calls.
+
+**Resources** (always available, included in context):
+
+| URI | What it provides |
+|-----|-----------------|
+| `riggs://briefing` | Session briefing (trust baseline, last session, known issues) |
+| `riggs://trust` | Current trust scores |
+| `riggs://ratchet` | Pending candidates and recent decisions |
+| `riggs://metrics` | Ratchet metrics |
+| `riggs://sandbox` | Sandbox grades (when blq is available) |
+
+**Tools** (agent-callable):
+
+| Tool | What it does |
+|------|-------------|
+| `RiggsTrust(window?)` | Get trust scores, optionally with history |
+| `RiggsMetrics(period?)` | Get metrics for a time period |
+| `RiggsFailures(category?, limit?)` | Query the failure stream |
+| `RiggsSandbox(command?)` | Get sandbox grades |
+
+All read-only. The MCP server opens the store in read-only mode — agents can observe but never modify Riggs data. All mutations happen through the CLI (human in the loop).
+
+See [MCP Reference](mcp.md) for full details.
+
+## 13. The Ratchet in Action
+
+Step back and look at what you've seen:
+
+1. **Trust scores** tracked the agent's behavior per-turn, catching problems in real time
+2. **Failure stream** accumulated across sessions, revealing patterns no single session could show
+3. **Ratchet candidates** would have surfaced those patterns as actionable recommendations
+4. **Promotions** would have changed how the tools work — tighter interceptors, new templates, better constraints
+
+This is the ratchet: the system only gets tighter. Patterns that work get crystallized. Boundaries that get violated get reinforced. Tools that are missing get identified.
+
+And when lackpy is in the picture, the ratchet gets another dimension:
+- **Successful delegations** become templates — the model gets called less over time
+- **Failed delegations** reveal gaps — "lackpy needs a tool for X" becomes a new kind of candidate
+- **Generation tier** tracks the shift — you can measure templates replacing model calls in the metrics
+
+For the full picture, see [The Ratchet](the-ratchet.md).
+
+## 14. What's Next
+
+**Tune thresholds.** The defaults work well for most projects, but every codebase is different. If trust_1 triggers tightening too aggressively, raise `tighten_threshold`. If candidates appear too slowly, lower `min_frequency`. See [Configuration](configuration.md).
+
+**Install the full suite.** Agent-riggs works best with the complete Rigged tool suite:
+
+```bash
+pip install agent-riggs[full]  # kibitzer + fledgling + blq + jetsam
+agent-riggs init --full
+```
+
+**Integrate with lackpy.** When lackpy is installed, Riggs can ingest execution traces for trust scoring and ratchet analysis. Template promotions skip model inference for patterns that have proven reliable.
+
+**Query the store directly.** The `.riggs/store.duckdb` file is a standard DuckDB database. You can query it with any DuckDB client:
+
+```sql
+SELECT failure_category, count(*)
+FROM failure_stream
+WHERE project = 'your-project'
+GROUP BY failure_category
+ORDER BY count(*) DESC;
+```

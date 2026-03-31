@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from agent_riggs.trust.events import EventCategory, TurnEvent
@@ -18,9 +18,7 @@ class LackpySource:
     def discover(self, project_root: Path) -> bool:
         return (project_root / ".lackpy" / "traces.jsonl").exists()
 
-    def read_events(
-        self, project_root: Path, since: datetime | None
-    ) -> list[TurnEvent]:
+    def read_events(self, project_root: Path, since: datetime | None) -> list[TurnEvent]:
         log_path = project_root / ".lackpy" / "traces.jsonl"
         if not log_path.exists():
             return []
@@ -35,16 +33,18 @@ class LackpySource:
                 ts = self._parse_timestamp(entry.get("timestamp", ""))
                 if since and ts < since:
                     continue
-                events.append(TurnEvent(
-                    session_id=f"lackpy-{ts.strftime('%Y%m%d')}",
-                    turn_number=i + 1,
-                    timestamp=ts,
-                    tool_name="lackpy.delegate",
-                    tool_success=entry.get("success", False),
-                    mode=None,
-                    event_category=self._classify(entry),
-                    metadata=entry,
-                ))
+                events.append(
+                    TurnEvent(
+                        session_id=f"lackpy-{ts.strftime('%Y%m%d')}",
+                        turn_number=i + 1,
+                        timestamp=ts,
+                        tool_name="lackpy.delegate",
+                        tool_success=entry.get("success", False),
+                        mode=None,
+                        event_category=self._classify(entry),
+                        metadata=entry,
+                    )
+                )
         return events
 
     def _classify(self, entry: dict) -> EventCategory:
@@ -57,6 +57,6 @@ class LackpySource:
 
     def _parse_timestamp(self, ts_str: str) -> datetime:
         if not ts_str:
-            return datetime.now(timezone.utc)
+            return datetime.now(UTC)
         ts_str = ts_str.replace("Z", "+00:00")
         return datetime.fromisoformat(ts_str)

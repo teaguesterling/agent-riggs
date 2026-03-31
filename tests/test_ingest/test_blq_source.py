@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -35,9 +35,11 @@ def _create_blq_db(project: Path) -> Path:
 def _insert_invocation(project, cmd, exit_code, ts=None, source_name=None):
     db_path = project / ".bird" / "blq.duckdb"
     conn = duckdb.connect(str(db_path))
-    ts = ts or datetime.now(timezone.utc)
+    ts = ts or datetime.now(UTC)
     conn.execute(
-        "INSERT INTO invocations (id, session_id, timestamp, cmd, exit_code, source_name) VALUES (?, ?, ?, ?, ?, ?)",
+        """INSERT INTO invocations
+           (id, session_id, timestamp, cmd, exit_code, source_name)
+           VALUES (?, ?, ?, ?, ?, ?)""",
         [str(uuid4()), "sess-1", ts, cmd, exit_code, source_name],
     )
     conn.close()
@@ -72,9 +74,9 @@ def test_failed_command(tmp_project):
 
 def test_respects_since(tmp_project):
     _create_blq_db(tmp_project)
-    _insert_invocation(tmp_project, "pytest", 0, ts=datetime(2026, 3, 30, tzinfo=timezone.utc))
-    _insert_invocation(tmp_project, "pytest", 1, ts=datetime(2026, 3, 31, tzinfo=timezone.utc))
-    since = datetime(2026, 3, 31, tzinfo=timezone.utc)
+    _insert_invocation(tmp_project, "pytest", 0, ts=datetime(2026, 3, 30, tzinfo=UTC))
+    _insert_invocation(tmp_project, "pytest", 1, ts=datetime(2026, 3, 31, tzinfo=UTC))
+    since = datetime(2026, 3, 31, tzinfo=UTC)
     events = BlqSource().read_events(tmp_project, since=since)
     assert len(events) == 1
     assert events[0].event_category == EventCategory.FAILURE

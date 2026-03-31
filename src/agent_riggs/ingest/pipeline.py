@@ -21,6 +21,7 @@ _FAILURE_CATEGORIES = frozenset(
     }
 )
 
+
 def _next_id(store: Store, table: str, column: str) -> int:
     """Get the next available ID from a table."""
     row = store.execute(f"SELECT coalesce(max({column}), 0) FROM {table}").fetchone()

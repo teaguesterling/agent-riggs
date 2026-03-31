@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from agent_riggs.trust.events import EventCategory, TurnEvent
@@ -34,9 +34,7 @@ class FledglingSource:
                     return True
         return False
 
-    def read_events(
-        self, project_root: Path, since: datetime | None
-    ) -> list[TurnEvent]:
+    def read_events(self, project_root: Path, since: datetime | None) -> list[TurnEvent]:
         jsonl_files = self._find_project_logs(project_root)
         if not jsonl_files:
             return []
@@ -63,9 +61,7 @@ class FledglingSource:
                         continue
 
                     session_id = record.get("sessionId", "unknown")
-                    ts = self._parse_timestamp(
-                        record.get("timestamp", "")
-                    )
+                    ts = self._parse_timestamp(record.get("timestamp", ""))
                     if since and ts < since:
                         continue
 
@@ -78,23 +74,23 @@ class FledglingSource:
                         turn_counter += 1
                         tool_name = block.get("name", "unknown")
                         tool_input = block.get("input", {})
-                        category = self._classify(
-                            tool_name, tool_input
+                        category = self._classify(tool_name, tool_input)
+                        events.append(
+                            TurnEvent(
+                                session_id=session_id,
+                                turn_number=turn_counter,
+                                timestamp=ts,
+                                tool_name=tool_name,
+                                tool_success=True,
+                                mode=None,
+                                event_category=category,
+                                metadata={
+                                    "tool_input": tool_input,
+                                    "model": message.get("model"),
+                                    "source": "fledgling",
+                                },
+                            )
                         )
-                        events.append(TurnEvent(
-                            session_id=session_id,
-                            turn_number=turn_counter,
-                            timestamp=ts,
-                            tool_name=tool_name,
-                            tool_success=True,
-                            mode=None,
-                            event_category=category,
-                            metadata={
-                                "tool_input": tool_input,
-                                "model": message.get("model"),
-                                "source": "fledgling",
-                            },
-                        ))
 
         return events
 
@@ -112,19 +108,13 @@ class FledglingSource:
                 continue
             # Check first JSONL for cwd match
             for jsonl_path in sorted(project_dir.glob("*.jsonl")):
-                if self._jsonl_matches_project(
-                    jsonl_path, project_str
-                ):
-                    matches.extend(
-                        sorted(project_dir.glob("*.jsonl"))
-                    )
+                if self._jsonl_matches_project(jsonl_path, project_str):
+                    matches.extend(sorted(project_dir.glob("*.jsonl")))
                     break
 
         return matches
 
-    def _jsonl_matches_project(
-        self, jsonl_path: Path, project_str: str
-    ) -> bool:
+    def _jsonl_matches_project(self, jsonl_path: Path, project_str: str) -> bool:
         """Check if a JSONL file's cwd matches the project root."""
         with jsonl_path.open() as f:
             for line in f:
@@ -143,9 +133,7 @@ class FledglingSource:
                     break
         return False
 
-    def _classify(
-        self, tool_name: str, tool_input: dict
-    ) -> EventCategory:
+    def _classify(self, tool_name: str, tool_input: dict) -> EventCategory:
         if tool_name == "Bash":
             cmd = tool_input.get("command", "")
             first_word = cmd.split()[0] if cmd.split() else ""
@@ -155,7 +143,7 @@ class FledglingSource:
 
     def _parse_timestamp(self, ts_str: str) -> datetime:
         if not ts_str:
-            return datetime.now(timezone.utc)
+            return datetime.now(UTC)
         ts_str = ts_str.replace("Z", "+00:00")
         # Handle millisecond timestamps
         if "." in ts_str and "+" in ts_str:

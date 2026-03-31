@@ -7,9 +7,7 @@ from datetime import UTC, datetime
 
 
 def record_decision(store, candidate, decision, reason=None, config_change=None):
-    row = store.execute(
-        "SELECT coalesce(max(decision_id), 0) FROM ratchet_decisions"
-    ).fetchone()
+    row = store.execute("SELECT coalesce(max(decision_id), 0) FROM ratchet_decisions").fetchone()
     next_id = row[0] + 1
 
     store.execute(

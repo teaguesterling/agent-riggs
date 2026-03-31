@@ -10,6 +10,7 @@ import click
 
 from agent_riggs.ingest.pipeline import IngestResult, ingest
 from agent_riggs.ingest.sources.kibitzer import KibitzerSource
+from agent_riggs.ingest.sources.lackpy import LackpySource
 
 if TYPE_CHECKING:
     from agent_riggs.service import RiggsService
@@ -44,4 +45,4 @@ class IngestPlugin:
         )
 
     def _discover_sources(self) -> list[Any]:
-        return [KibitzerSource()]
+        return [KibitzerSource(), LackpySource()]

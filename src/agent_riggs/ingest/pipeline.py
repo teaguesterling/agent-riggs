@@ -21,13 +21,10 @@ _FAILURE_CATEGORIES = frozenset(
     }
 )
 
-_next_turn_id = 0
-
-
-def _gen_turn_id() -> int:
-    global _next_turn_id
-    _next_turn_id += 1
-    return _next_turn_id
+def _next_id(store: Store, table: str, column: str) -> int:
+    """Get the next available ID from a table."""
+    row = store.execute(f"SELECT coalesce(max({column}), 0) FROM {table}").fetchone()
+    return row[0] + 1
 
 
 @dataclass
@@ -49,6 +46,7 @@ def ingest(
     project = project_root.name
 
     ewma = _load_or_create_ewma(store, project, trust_config)
+    next_turn_id = _next_id(store, "turns", "turn_id")
 
     for source in sources:
         if not source.discover(project_root):
@@ -59,7 +57,8 @@ def ingest(
         for event in events:
             score = score_event(event, trust_config)
             t1, t5, t15 = ewma.update(score)
-            turn_id = _gen_turn_id()
+            turn_id = next_turn_id
+            next_turn_id += 1
 
             _store_turn(store, turn_id, project, event, score, t1, t5, t15)
             result.turns_ingested += 1

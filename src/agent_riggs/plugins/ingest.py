@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any
 import click
 
 from agent_riggs.ingest.pipeline import IngestResult, ingest
+from agent_riggs.ingest.sources.blq import BlqSource
+from agent_riggs.ingest.sources.fledgling import FledglingSource
 from agent_riggs.ingest.sources.kibitzer import KibitzerSource
 from agent_riggs.ingest.sources.lackpy import LackpySource
 
@@ -45,4 +47,4 @@ class IngestPlugin:
         )
 
     def _discover_sources(self) -> list[Any]:
-        return [KibitzerSource(), LackpySource()]
+        return [BlqSource(), FledglingSource(), KibitzerSource(), LackpySource()]

@@ -1,8 +1,11 @@
 """Sandbox tightening recommendations. Stub — requires blq."""
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Any
+
 from agent_riggs.config import SandboxConfig
+
 
 @dataclass
 class SandboxRecommendation:

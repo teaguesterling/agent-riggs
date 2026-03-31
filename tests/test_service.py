@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import click
 
-from agent_riggs.config import RiggsConfig, load_config
-from agent_riggs.plugins.base import ServicePlugin
+from agent_riggs.config import load_config
 from agent_riggs.service import RiggsService
 from agent_riggs.store import Store
 

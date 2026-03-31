@@ -1,6 +1,8 @@
 """Project-level health assessment."""
 from __future__ import annotations
+
 from typing import Any
+
 from agent_riggs.store import Store
 
 

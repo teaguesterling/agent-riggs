@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 
 from agent_riggs.config import RatchetConfig
-from agent_riggs.ratchet.candidates import Candidate, find_constraint_candidates
-from agent_riggs.ratchet.aggregator import failure_summary
-from agent_riggs.store import Store
 from agent_riggs.plugins.trust import TRUST_DDL
-
+from agent_riggs.ratchet.aggregator import failure_summary
+from agent_riggs.ratchet.candidates import find_constraint_candidates
+from agent_riggs.store import Store
 
 _failure_id_seq = 0
 
@@ -24,7 +22,7 @@ def _seed_failures(store, project, count, category="edit_failure", tool="Edit",
                 failure_category, tool_name, mode, trust_at_failure, detail)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             [_failure_id_seq + 20000, _failure_id_seq + 10000, session, project,
-             datetime(2026, 3, 29, 10, 0, 0, tzinfo=timezone.utc),
+             datetime(2026, 3, 29, 10, 0, 0, tzinfo=UTC),
              category, tool, mode, 0.5, "{}"])
 
 

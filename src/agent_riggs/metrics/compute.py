@@ -1,7 +1,8 @@
 """Ratchet metrics computation from the store."""
 from __future__ import annotations
+
 from dataclasses import dataclass
-from agent_riggs.store import Store
+
 
 @dataclass
 class RatchetMetrics:

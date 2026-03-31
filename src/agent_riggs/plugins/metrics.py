@@ -1,11 +1,12 @@
 """Metrics plugin — ratchet velocity, self-service ratio, trends."""
 from __future__ import annotations
-from typing import Any, Callable, TYPE_CHECKING
-import click
-from agent_riggs.metrics.compute import RatchetMetrics, compute_metrics
+
+from typing import TYPE_CHECKING
+
+from agent_riggs.metrics.compute import compute_metrics
 
 if TYPE_CHECKING:
-    from agent_riggs.service import RiggsService
+    pass
 
 class MetricsPlugin:
     name = "metrics"

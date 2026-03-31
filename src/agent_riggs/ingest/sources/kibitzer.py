@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from agent_riggs.trust.events import EventCategory, TurnEvent
@@ -73,6 +73,6 @@ class KibitzerSource:
 
     def _parse_timestamp(self, ts_str: str) -> datetime:
         if not ts_str:
-            return datetime.now(timezone.utc)
+            return datetime.now(UTC)
         ts_str = ts_str.replace("Z", "+00:00")
         return datetime.fromisoformat(ts_str)

@@ -9,10 +9,9 @@ from pathlib import Path
 from agent_riggs.config import TrustConfig
 from agent_riggs.ingest.sources.base import Source
 from agent_riggs.store import Store
-from agent_riggs.trust.events import EventCategory, TurnEvent
+from agent_riggs.trust.events import EventCategory
 from agent_riggs.trust.ewma import TrustEWMA
 from agent_riggs.trust.scorer import score_event
-
 
 _FAILURE_CATEGORIES = frozenset({
     EventCategory.FAILURE,

@@ -30,11 +30,11 @@ def assemble(project_root: Path, read_only: bool = False) -> RiggsService:
 
 def _register_core_plugins(service: RiggsService) -> None:
     """Register plugins that are always available."""
-    from agent_riggs.plugins.trust import TrustPlugin
-    from agent_riggs.plugins.ingest import IngestPlugin
-    from agent_riggs.plugins.ratchet import RatchetPlugin
-    from agent_riggs.plugins.metrics import MetricsPlugin
     from agent_riggs.plugins.briefing import BriefingPlugin
+    from agent_riggs.plugins.ingest import IngestPlugin
+    from agent_riggs.plugins.metrics import MetricsPlugin
+    from agent_riggs.plugins.ratchet import RatchetPlugin
+    from agent_riggs.plugins.trust import TrustPlugin
 
     service.register(TrustPlugin())
     service.register(IngestPlugin())

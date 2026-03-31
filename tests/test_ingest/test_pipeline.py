@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 
 from agent_riggs.config import load_config
-from agent_riggs.ingest.pipeline import ingest, IngestResult
+from agent_riggs.ingest.pipeline import ingest
 from agent_riggs.ingest.sources.kibitzer import KibitzerSource
 from agent_riggs.store import Store
 

@@ -1,14 +1,18 @@
 """Ratchet plugin — candidates, promotions, history."""
 from __future__ import annotations
-from typing import Any, Callable, TYPE_CHECKING
-import click
+
+from typing import TYPE_CHECKING
+
 from agent_riggs.ratchet.aggregator import failure_summary
-from agent_riggs.ratchet.candidates import Candidate, find_constraint_candidates, find_tool_candidates
+from agent_riggs.ratchet.candidates import (
+    find_constraint_candidates,
+    find_tool_candidates,
+)
 from agent_riggs.ratchet.history import get_history
 from agent_riggs.ratchet.promotions import record_decision
 
 if TYPE_CHECKING:
-    from agent_riggs.service import RiggsService
+    pass
 
 RATCHET_DDL = ["""
     CREATE TABLE IF NOT EXISTS ratchet_decisions (

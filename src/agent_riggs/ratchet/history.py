@@ -1,7 +1,6 @@
 """Ratchet decision history queries."""
 from __future__ import annotations
-from typing import Any
-from agent_riggs.store import Store
+
 
 def get_history(store, limit=50):
     rows = store.execute("""

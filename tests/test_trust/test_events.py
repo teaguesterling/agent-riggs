@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from agent_riggs.trust.events import TurnEvent, EventCategory
+from agent_riggs.trust.events import EventCategory, TurnEvent
 
 
 def test_turn_event_creation() -> None:
     event = TurnEvent(
         session_id="sess-1",
         turn_number=1,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         tool_name="Read",
         tool_success=True,
         mode="implement",

@@ -1,7 +1,11 @@
 """Briefing plugin — session and project briefings."""
 from __future__ import annotations
-from typing import Any, Callable, TYPE_CHECKING
+
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
+
 import click
+
 from agent_riggs.briefing.session import SessionBriefing, generate_briefing
 
 if TYPE_CHECKING:
@@ -11,7 +15,7 @@ if TYPE_CHECKING:
 class BriefingPlugin:
     name = "briefing"
 
-    def bind(self, service: "RiggsService") -> None:
+    def bind(self, service: RiggsService) -> None:
         self.service = service
 
     def schema_ddl(self) -> list[str]:

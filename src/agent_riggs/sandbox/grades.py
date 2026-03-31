@@ -1,7 +1,10 @@
 """Read blq sandbox grades and aggregate across sessions. Stub — requires blq."""
 from __future__ import annotations
+
 from typing import Any
+
 from agent_riggs.store import Store
+
 
 def get_grades(store: Store, project: str) -> list[dict[str, Any]]:
     rows = store.execute("""SELECT command, current_grade_w, current_effects_ceiling,

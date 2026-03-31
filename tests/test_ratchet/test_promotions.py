@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from agent_riggs.plugins.ratchet import RATCHET_DDL
 from agent_riggs.ratchet.candidates import Candidate
 from agent_riggs.ratchet.history import get_history

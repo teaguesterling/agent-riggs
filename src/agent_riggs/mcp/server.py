@@ -1,8 +1,12 @@
 """MCP server for agent-riggs — auto-discovers resources and tools from plugins."""
 from __future__ import annotations
+
 from pathlib import Path
+
 from mcp.server import Server
+
 from agent_riggs.assembly import assemble
+
 
 def create_server(project_root: Path | None = None) -> Server:
     """Create an MCP server with all plugin resources and tools registered."""

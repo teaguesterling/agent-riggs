@@ -1,7 +1,7 @@
 """Trend detection over configurable windows."""
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Any
 
 _SIGNIFICANCE_THRESHOLD = 0.05
 

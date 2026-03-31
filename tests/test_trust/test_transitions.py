@@ -3,7 +3,6 @@ from __future__ import annotations
 from agent_riggs.config import TrustConfig
 from agent_riggs.trust.transitions import (
     TransitionAction,
-    Recommendation,
     recommend_transition,
 )
 

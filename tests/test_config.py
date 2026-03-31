@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agent_riggs.config import RiggsConfig, load_config
+from agent_riggs.config import load_config
 
 
 def test_load_defaults_when_no_user_config(tmp_project: Path) -> None:

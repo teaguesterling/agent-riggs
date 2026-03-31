@@ -1,11 +1,11 @@
 """Cross-session failure stream aggregation."""
 from __future__ import annotations
-from datetime import datetime, timedelta, timezone
-from typing import Any
-from agent_riggs.store import Store
+
+from datetime import UTC, datetime, timedelta
+
 
 def failure_summary(store, project, days=30):
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff = datetime.now(UTC) - timedelta(days=days)
     rows = store.execute("""
         SELECT failure_category, count(*) AS count,
                count(DISTINCT session_id) AS sessions_affected,

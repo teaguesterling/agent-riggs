@@ -1,10 +1,10 @@
 """Identify ratchet promotion candidates from cross-session data."""
 from __future__ import annotations
+
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
-from agent_riggs.config import RatchetConfig
-from agent_riggs.store import Store
+
 
 @dataclass
 class Candidate:
@@ -14,7 +14,7 @@ class Candidate:
     recommendation: str
 
 def find_tool_candidates(store, project, config):
-    cutoff = datetime.now(timezone.utc) - timedelta(days=config.lookback_days)
+    cutoff = datetime.now(UTC) - timedelta(days=config.lookback_days)
     rows = store.execute("""
         SELECT metadata, count(*) AS frequency, count(DISTINCT session_id) AS sessions,
                round(avg(CASE WHEN tool_success THEN 1.0 ELSE 0.0 END), 2) AS success_rate
@@ -37,7 +37,7 @@ def find_tool_candidates(store, project, config):
     return candidates
 
 def find_constraint_candidates(store, project, config):
-    cutoff = datetime.now(timezone.utc) - timedelta(days=config.lookback_days)
+    cutoff = datetime.now(UTC) - timedelta(days=config.lookback_days)
     rows = store.execute("""
         SELECT failure_category, tool_name, mode, count(*) AS occurrences,
                count(DISTINCT session_id) AS sessions_affected,

@@ -1,5 +1,7 @@
 from __future__ import annotations
-from agent_riggs.metrics.trends import Trend, detect_trends
+
+from agent_riggs.metrics.trends import detect_trends
+
 
 def test_detect_improving_trend():
     current = {"structured_tool_fraction": 0.72}

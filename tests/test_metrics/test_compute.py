@@ -1,12 +1,14 @@
 from __future__ import annotations
-from datetime import datetime, timezone
-from pathlib import Path
+
+from datetime import UTC, datetime
+
 from agent_riggs.metrics.compute import RatchetMetrics, compute_metrics
 from agent_riggs.store import Store
 
+
 def _get_all_ddl():
-    from agent_riggs.plugins.trust import TRUST_DDL
     from agent_riggs.plugins.ratchet import RATCHET_DDL
+    from agent_riggs.plugins.trust import TRUST_DDL
     return TRUST_DDL + RATCHET_DDL
 
 def _seed_session_data(store, project):
@@ -16,7 +18,7 @@ def _seed_session_data(store, project):
             tool_name, tool_success, mode, trust_score, trust_1, trust_5, trust_15, event_category, metadata)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             [i + 30000, session, project, i + 1,
-             datetime(2026, 3, 29, 10, i, 0, tzinfo=timezone.utc),
+             datetime(2026, 3, 29, 10, i, 0, tzinfo=UTC),
              "Read" if i % 3 != 0 else "Bash", True, "implement",
              1.0 if i % 3 != 0 else 0.7, 0.9, 0.85, 0.87,
              "success" if i % 3 != 0 else "suboptimal", "{}"])

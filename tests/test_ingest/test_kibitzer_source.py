@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from agent_riggs.ingest.sources.kibitzer import KibitzerSource
@@ -82,6 +82,6 @@ def test_read_events_respects_since(tmp_project: Path) -> None:
     ])
 
     source = KibitzerSource()
-    since = datetime(2026, 3, 29, tzinfo=timezone.utc)
+    since = datetime(2026, 3, 29, tzinfo=UTC)
     events = source.read_events(tmp_project, since=since)
     assert len(events) == 1

@@ -223,7 +223,7 @@ def metrics_cmd(period: int | None) -> None:
     )
     click.echo(f"  Failure rate:            {m.failure_rate:.0%}")
     if m.mode_distribution:
-        click.echo(f"\n  Mode distribution:")
+        click.echo("\n  Mode distribution:")
         for mode, frac in sorted(m.mode_distribution.items(), key=lambda x: -x[1]):
             click.echo(f"    {mode}: {frac:.0%}")
     service.store.close()

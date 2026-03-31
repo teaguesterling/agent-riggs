@@ -1,7 +1,9 @@
 """Generate session briefings from cross-session data."""
 from __future__ import annotations
-from dataclasses import dataclass, field
+
+from dataclasses import dataclass
 from typing import Any
+
 from agent_riggs.config import RiggsConfig
 from agent_riggs.store import Store
 

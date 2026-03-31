@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from agent_riggs.config import TrustConfig
-from agent_riggs.trust.events import TurnEvent, EventCategory
+from agent_riggs.trust.events import EventCategory, TurnEvent
 from agent_riggs.trust.scorer import score_event
 
 
@@ -11,7 +11,7 @@ def _make_event(category: EventCategory) -> TurnEvent:
     return TurnEvent(
         session_id="sess-1",
         turn_number=1,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         tool_name="Read",
         tool_success=True,
         mode="implement",

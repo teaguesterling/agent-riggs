@@ -1,4 +1,5 @@
 """Briefing plugin — session and project briefings."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -31,7 +32,9 @@ class BriefingPlugin:
         return []
 
     def brief(self) -> SessionBriefing:
-        return generate_briefing(self.service.store, self.service.project_root.name, self.service.config)
+        return generate_briefing(
+            self.service.store, self.service.project_root.name, self.service.config
+        )
 
     def _briefing_resource(self) -> str:
         return self.brief().format()

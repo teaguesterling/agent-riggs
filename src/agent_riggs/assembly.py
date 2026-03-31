@@ -49,4 +49,5 @@ def _register_optional_plugins(service: RiggsService) -> None:
 
     if shutil.which("blq"):
         from agent_riggs.plugins.sandbox import SandboxPlugin
+
         service.register(SandboxPlugin())

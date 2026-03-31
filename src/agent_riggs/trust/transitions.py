@@ -71,8 +71,7 @@ def recommend_transition(
     ):
         return Recommendation(
             action=TransitionAction.LOOSEN,
-            reason=f"trust_1={t1:.2f} and trust_5={t5:.2f} sustained "
-            f"for {turn_count} turns",
+            reason=f"trust_1={t1:.2f} and trust_5={t5:.2f} sustained for {turn_count} turns",
             trust_1=t1,
             trust_5=t5,
         )

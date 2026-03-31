@@ -1,0 +1,25 @@
+site_name: Agent Riggs
+site_description: Cross-session memory and analysis for the Rigged tool suite
+repo_url: https://github.com/teague/agent-riggs
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: deep purple
+
+nav:
+  - Home: index.md
+  - Tutorial: tutorial.md
+  - The Ratchet: the-ratchet.md
+  - Reference:
+    - CLI: cli-reference.md
+    - Configuration: configuration.md
+    - Integration: integration.md
+    - Architecture: architecture.md
+    - MCP Server: mcp.md
+
+markdown_extensions:
+  - tables
+  - fenced_code
+  - codehilite

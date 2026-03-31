@@ -14,7 +14,7 @@ def test_load_defaults_when_no_user_config(tmp_project: Path) -> None:
 
 def test_user_config_overrides_defaults(tmp_project: Path) -> None:
     user_config = tmp_project / ".riggs" / "config.toml"
-    user_config.write_text('[trust]\nscore_success = 0.9\n')
+    user_config.write_text("[trust]\nscore_success = 0.9\n")
     config = load_config(tmp_project)
     assert config.trust.score_success == 0.9
     # Other defaults preserved

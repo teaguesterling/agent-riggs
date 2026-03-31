@@ -37,6 +37,7 @@ def init() -> None:
         config_path.write_text(defaults_ref.read_text(encoding="utf-8"))
 
     from agent_riggs.assembly import assemble
+
     service = assemble(project_root)
 
     tools = []
@@ -96,6 +97,7 @@ def status() -> None:
 
 # --- Trust commands ---
 
+
 @main.group("trust")
 def trust_group() -> None:
     """Trust score commands."""
@@ -105,6 +107,7 @@ def trust_group() -> None:
 def trust_current() -> None:
     """Show current trust scores."""
     from agent_riggs.assembly import assemble
+
     service = assemble(find_project_root())
     data = service.plugin("trust").current()
     if not data["has_data"]:
@@ -121,6 +124,7 @@ def trust_current() -> None:
 def trust_history(limit: int) -> None:
     """Show trust score history."""
     from agent_riggs.assembly import assemble
+
     service = assemble(find_project_root())
     history = service.plugin("trust").history(limit=limit)
     if not history:
@@ -136,6 +140,7 @@ def trust_history(limit: int) -> None:
 
 # --- Ratchet commands ---
 
+
 @main.group("ratchet")
 def ratchet_group() -> None:
     """Ratchet candidate commands."""
@@ -145,6 +150,7 @@ def ratchet_group() -> None:
 def ratchet_candidates() -> None:
     """Show pending ratchet candidates."""
     from agent_riggs.assembly import assemble
+
     service = assemble(find_project_root())
     candidates = service.plugin("ratchet").candidates()
     if not candidates:
@@ -163,6 +169,7 @@ def ratchet_candidates() -> None:
 def ratchet_promote(key: str, reason: str | None) -> None:
     """Promote a ratchet candidate."""
     from agent_riggs.assembly import assemble
+
     service = assemble(find_project_root())
     try:
         service.plugin("ratchet").promote(key, reason)
@@ -178,6 +185,7 @@ def ratchet_promote(key: str, reason: str | None) -> None:
 def ratchet_reject(key: str, reason: str) -> None:
     """Reject a ratchet candidate with reason."""
     from agent_riggs.assembly import assemble
+
     service = assemble(find_project_root())
     try:
         service.plugin("ratchet").reject(key, reason)
@@ -191,6 +199,7 @@ def ratchet_reject(key: str, reason: str) -> None:
 def ratchet_history() -> None:
     """Show ratchet decision history."""
     from agent_riggs.assembly import assemble
+
     service = assemble(find_project_root())
     history = service.plugin("ratchet").history()
     if not history:
@@ -206,11 +215,13 @@ def ratchet_history() -> None:
 
 # --- Metrics command ---
 
+
 @main.command("metrics")
 @click.option("--period", default=None, type=int, help="Period in days")
 def metrics_cmd(period: int | None) -> None:
     """Show ratchet metrics dashboard."""
     from agent_riggs.assembly import assemble
+
     service = assemble(find_project_root())
     m = service.plugin("metrics").compute(period)
     click.echo(f"RATCHET METRICS ({m.total_sessions} sessions)\n")
@@ -231,10 +242,12 @@ def metrics_cmd(period: int | None) -> None:
 
 # --- Brief command ---
 
+
 @main.command("brief")
 def brief_cmd() -> None:
     """Full session briefing."""
     from agent_riggs.assembly import assemble
+
     service = assemble(find_project_root())
     briefing = service.plugin("briefing").brief()
     click.echo(f"PROJECT BRIEFING: {find_project_root().name}\n")

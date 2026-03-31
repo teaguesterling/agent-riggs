@@ -64,10 +64,18 @@ TRUST_DDL = [
     """,
 ]
 
-_FAILURE_CATEGORIES = frozenset({
-    "failure", "path_denial", "edit_failure", "repeated_failure",
-    "timeout", "mode_forced", "sandbox_violation", "trust_drop",
-})
+_FAILURE_CATEGORIES = frozenset(
+    {
+        "failure",
+        "path_denial",
+        "edit_failure",
+        "repeated_failure",
+        "timeout",
+        "mode_forced",
+        "sandbox_violation",
+        "trust_drop",
+    }
+)
 
 
 class TrustPlugin:
@@ -127,8 +135,12 @@ class TrustPlugin:
         ).fetchall()
         return [
             {
-                "trust_1": r[0], "trust_5": r[1], "trust_15": r[2],
-                "session_id": r[3], "turn_number": r[4], "timestamp": r[5],
+                "trust_1": r[0],
+                "trust_5": r[1],
+                "trust_15": r[2],
+                "session_id": r[3],
+                "turn_number": r[4],
+                "timestamp": r[5],
             }
             for r in rows
         ]

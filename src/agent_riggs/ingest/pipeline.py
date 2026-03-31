@@ -13,11 +13,13 @@ from agent_riggs.trust.events import EventCategory
 from agent_riggs.trust.ewma import TrustEWMA
 from agent_riggs.trust.scorer import score_event
 
-_FAILURE_CATEGORIES = frozenset({
-    EventCategory.FAILURE,
-    EventCategory.PATH_DENIAL,
-    EventCategory.REPEATED_FAILURE,
-})
+_FAILURE_CATEGORIES = frozenset(
+    {
+        EventCategory.FAILURE,
+        EventCategory.PATH_DENIAL,
+        EventCategory.REPEATED_FAILURE,
+    }
+)
 
 _next_turn_id = 0
 
@@ -71,7 +73,8 @@ def ingest(
 
 def _load_or_create_ewma(store: Store, project: str, config: TrustConfig) -> TrustEWMA:
     row = store.execute(
-        "SELECT trust_1, trust_5, trust_15 FROM turns WHERE project = ? ORDER BY timestamp DESC LIMIT 1",
+        """SELECT trust_1, trust_5, trust_15 FROM turns
+           WHERE project = ? ORDER BY timestamp DESC LIMIT 1""",
         [project],
     ).fetchone()
 
@@ -97,10 +100,20 @@ def _store_turn(store, turn_id, project, event, score, t1, t5, t15):
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
-            turn_id, event.session_id, project, event.turn_number,
-            event.timestamp, event.tool_name, event.tool_success,
-            event.mode, score, t1, t5, t15,
-            event.event_category.value, json.dumps(event.metadata),
+            turn_id,
+            event.session_id,
+            project,
+            event.turn_number,
+            event.timestamp,
+            event.tool_name,
+            event.tool_success,
+            event.mode,
+            score,
+            t1,
+            t5,
+            t15,
+            event.event_category.value,
+            json.dumps(event.metadata),
         ],
     )
 
@@ -114,9 +127,15 @@ def _store_failure(store, turn_id, project, event, trust_at_failure):
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
-            turn_id, turn_id, event.session_id, project,
-            event.timestamp, event.event_category.value,
-            event.tool_name, event.mode, trust_at_failure,
+            turn_id,
+            turn_id,
+            event.session_id,
+            project,
+            event.timestamp,
+            event.event_category.value,
+            event.tool_name,
+            event.mode,
+            trust_at_failure,
             json.dumps(event.metadata),
         ],
     )

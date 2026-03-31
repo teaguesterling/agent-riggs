@@ -50,16 +50,18 @@ class KibitzerSource:
                 ts = self._parse_timestamp(entry.get("timestamp", ""))
                 if since and ts < since:
                     continue
-                events.append(TurnEvent(
-                    session_id=session_id,
-                    turn_number=i + 1,
-                    timestamp=ts,
-                    tool_name=entry.get("tool"),
-                    tool_success=entry.get("success"),
-                    mode=mode,
-                    event_category=self._classify(entry),
-                    metadata=entry,
-                ))
+                events.append(
+                    TurnEvent(
+                        session_id=session_id,
+                        turn_number=i + 1,
+                        timestamp=ts,
+                        tool_name=entry.get("tool"),
+                        tool_success=entry.get("success"),
+                        mode=mode,
+                        event_category=self._classify(entry),
+                        metadata=entry,
+                    )
+                )
         return events
 
     def _classify(self, entry: dict) -> EventCategory:

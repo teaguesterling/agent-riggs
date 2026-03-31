@@ -34,26 +34,32 @@ def test_discover_when_kibitzer_absent(tmp_project: Path) -> None:
 
 
 def test_read_events_from_intercept_log(tmp_project: Path) -> None:
-    _write_kibitzer_state(tmp_project, {
-        "mode": "implement",
-        "turn_count": 3,
-        "session_id": "sess-abc",
-    })
-    _write_intercept_log(tmp_project, [
+    _write_kibitzer_state(
+        tmp_project,
         {
-            "timestamp": "2026-03-29T10:00:00Z",
-            "tool": "Bash",
-            "command": "grep -rn 'def ' src/",
-            "suggestion": "Use FindDefinitions",
-            "action": "suggest",
+            "mode": "implement",
+            "turn_count": 3,
+            "session_id": "sess-abc",
         },
-        {
-            "timestamp": "2026-03-29T10:01:00Z",
-            "tool": "Edit",
-            "success": False,
-            "error": "old_string not found",
-        },
-    ])
+    )
+    _write_intercept_log(
+        tmp_project,
+        [
+            {
+                "timestamp": "2026-03-29T10:00:00Z",
+                "tool": "Bash",
+                "command": "grep -rn 'def ' src/",
+                "suggestion": "Use FindDefinitions",
+                "action": "suggest",
+            },
+            {
+                "timestamp": "2026-03-29T10:01:00Z",
+                "tool": "Edit",
+                "success": False,
+                "error": "old_string not found",
+            },
+        ],
+    )
 
     source = KibitzerSource()
     events = source.read_events(tmp_project, since=None)
@@ -63,23 +69,29 @@ def test_read_events_from_intercept_log(tmp_project: Path) -> None:
 
 
 def test_read_events_respects_since(tmp_project: Path) -> None:
-    _write_kibitzer_state(tmp_project, {
-        "mode": "implement",
-        "turn_count": 2,
-        "session_id": "sess-abc",
-    })
-    _write_intercept_log(tmp_project, [
+    _write_kibitzer_state(
+        tmp_project,
         {
-            "timestamp": "2026-03-28T10:00:00Z",
-            "tool": "Read",
-            "success": True,
+            "mode": "implement",
+            "turn_count": 2,
+            "session_id": "sess-abc",
         },
-        {
-            "timestamp": "2026-03-29T10:00:00Z",
-            "tool": "Edit",
-            "success": True,
-        },
-    ])
+    )
+    _write_intercept_log(
+        tmp_project,
+        [
+            {
+                "timestamp": "2026-03-28T10:00:00Z",
+                "tool": "Read",
+                "success": True,
+            },
+            {
+                "timestamp": "2026-03-29T10:00:00Z",
+                "tool": "Edit",
+                "success": True,
+            },
+        ],
+    )
 
     source = KibitzerSource()
     since = datetime(2026, 3, 29, tzinfo=UTC)

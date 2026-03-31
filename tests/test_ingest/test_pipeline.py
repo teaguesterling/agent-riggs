@@ -12,18 +12,27 @@ from agent_riggs.store import Store
 def _setup_kibitzer(project: Path) -> None:
     kib_dir = project / ".kibitzer"
     kib_dir.mkdir(exist_ok=True)
-    (kib_dir / "state.json").write_text(json.dumps({
-        "mode": "implement",
-        "turn_count": 3,
-        "session_id": "sess-test",
-    }))
+    (kib_dir / "state.json").write_text(
+        json.dumps(
+            {
+                "mode": "implement",
+                "turn_count": 3,
+                "session_id": "sess-test",
+            }
+        )
+    )
     with (kib_dir / "intercept.log").open("w") as f:
         for i in range(3):
-            f.write(json.dumps({
-                "timestamp": f"2026-03-29T10:0{i}:00Z",
-                "tool": "Read",
-                "success": True,
-            }) + "\n")
+            f.write(
+                json.dumps(
+                    {
+                        "timestamp": f"2026-03-29T10:0{i}:00Z",
+                        "tool": "Read",
+                        "success": True,
+                    }
+                )
+                + "\n"
+            )
 
 
 def test_ingest_stores_turns(tmp_project: Path) -> None:
@@ -33,6 +42,7 @@ def test_ingest_stores_turns(tmp_project: Path) -> None:
 
     with Store(db_path) as store:
         from agent_riggs.plugins.trust import TRUST_DDL
+
         store.ensure_schema(TRUST_DDL)
 
         result = ingest(
@@ -55,6 +65,7 @@ def test_ingest_computes_trust_scores(tmp_project: Path) -> None:
 
     with Store(db_path) as store:
         from agent_riggs.plugins.trust import TRUST_DDL
+
         store.ensure_schema(TRUST_DDL)
 
         ingest(
@@ -79,6 +90,7 @@ def test_ingest_skips_missing_sources(tmp_project: Path) -> None:
 
     with Store(db_path) as store:
         from agent_riggs.plugins.trust import TRUST_DDL
+
         store.ensure_schema(TRUST_DDL)
 
         result = ingest(
@@ -94,23 +106,33 @@ def test_ingest_skips_missing_sources(tmp_project: Path) -> None:
 def test_ingest_records_failures(tmp_project: Path) -> None:
     kib_dir = tmp_project / ".kibitzer"
     kib_dir.mkdir(exist_ok=True)
-    (kib_dir / "state.json").write_text(json.dumps({
-        "mode": "implement",
-        "session_id": "sess-fail",
-    }))
+    (kib_dir / "state.json").write_text(
+        json.dumps(
+            {
+                "mode": "implement",
+                "session_id": "sess-fail",
+            }
+        )
+    )
     with (kib_dir / "intercept.log").open("w") as f:
-        f.write(json.dumps({
-            "timestamp": "2026-03-29T10:00:00Z",
-            "tool": "Edit",
-            "success": False,
-            "error": "old_string not found",
-        }) + "\n")
+        f.write(
+            json.dumps(
+                {
+                    "timestamp": "2026-03-29T10:00:00Z",
+                    "tool": "Edit",
+                    "success": False,
+                    "error": "old_string not found",
+                }
+            )
+            + "\n"
+        )
 
     config = load_config(tmp_project)
     db_path = tmp_project / ".riggs" / "store.duckdb"
 
     with Store(db_path) as store:
         from agent_riggs.plugins.trust import TRUST_DDL
+
         store.ensure_schema(TRUST_DDL)
 
         ingest(

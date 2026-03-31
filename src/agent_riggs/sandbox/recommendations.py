@@ -1,4 +1,5 @@
 """Sandbox tightening recommendations. Stub — requires blq."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -15,5 +16,8 @@ class SandboxRecommendation:
     suggested: int
     reason: str
 
-def recommend_tightening(grades: list[dict[str, Any]], config: SandboxConfig) -> list[SandboxRecommendation]:
+
+def recommend_tightening(
+    grades: list[dict[str, Any]], config: SandboxConfig
+) -> list[SandboxRecommendation]:
     return []

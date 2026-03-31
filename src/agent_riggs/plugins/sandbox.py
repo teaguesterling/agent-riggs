@@ -1,4 +1,5 @@
 """Sandbox plugin — stub."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -30,15 +31,21 @@ SANDBOX_DDL = [
     """,
 ]
 
+
 class SandboxPlugin:
     name = "sandbox"
+
     def bind(self, service: RiggsService) -> None:
         self.service = service
+
     def schema_ddl(self) -> list[str]:
         return list(SANDBOX_DDL)
+
     def cli_commands(self) -> list[click.Command]:
         return []
+
     def mcp_resources(self) -> list[tuple[str, Callable[..., Any]]]:
         return []
+
     def mcp_tools(self) -> list[tuple[str, Callable[..., Any]]]:
         return []

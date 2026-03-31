@@ -1,4 +1,5 @@
 """MCP server for agent-riggs — auto-discovers resources and tools from plugins."""
+
 from __future__ import annotations
 
 from pathlib import Path

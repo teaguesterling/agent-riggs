@@ -11,8 +11,9 @@ from agent_riggs.store import Store
 _failure_id_seq = 0
 
 
-def _seed_failures(store, project, count, category="edit_failure", tool="Edit",
-                   mode="implement", session_count=5):
+def _seed_failures(
+    store, project, count, category="edit_failure", tool="Edit", mode="implement", session_count=5
+):
     global _failure_id_seq
     for i in range(count):
         session = f"sess-{i % session_count}"
@@ -21,9 +22,19 @@ def _seed_failures(store, project, count, category="edit_failure", tool="Edit",
             """INSERT INTO failure_stream (failure_id, turn_id, session_id, project, occurred_at,
                 failure_category, tool_name, mode, trust_at_failure, detail)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            [_failure_id_seq + 20000, _failure_id_seq + 10000, session, project,
-             datetime(2026, 3, 29, 10, 0, 0, tzinfo=UTC),
-             category, tool, mode, 0.5, "{}"])
+            [
+                _failure_id_seq + 20000,
+                _failure_id_seq + 10000,
+                session,
+                project,
+                datetime(2026, 3, 29, 10, 0, 0, tzinfo=UTC),
+                category,
+                tool,
+                mode,
+                0.5,
+                "{}",
+            ],
+        )
 
 
 def test_find_constraint_candidates(tmp_project):

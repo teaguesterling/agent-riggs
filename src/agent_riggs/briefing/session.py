@@ -1,4 +1,5 @@
 """Generate session briefings from cross-session data."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -23,7 +24,10 @@ class SessionBriefing:
             lines.append("Trust baseline: no data")
         if self.last_session:
             s = self.last_session
-            lines.append(f"Last session: {s['session_id']}, {s['total_turns']} turns, trust {s['trust_end']:.2f}")
+            lines.append(
+                f"Last session: {s['session_id']}, {s['total_turns']} turns, "
+                f"trust {s['trust_end']:.2f}"
+            )
         else:
             lines.append("Last session: none")
         if self.known_issues:
@@ -59,7 +63,8 @@ def generate_briefing(store: Store, project: str, config: RiggsConfig) -> Sessio
 
     failure_rows = store.execute(
         """SELECT failure_category, count(*) AS cnt FROM failure_stream
-           WHERE project = ? GROUP BY failure_category HAVING count(*) >= 3 ORDER BY cnt DESC LIMIT 5""",
+           WHERE project = ? GROUP BY failure_category
+           HAVING count(*) >= 3 ORDER BY cnt DESC LIMIT 5""",
         [project],
     ).fetchall()
     known_issues = [f"{r[0]} ({r[1]} occurrences)" for r in failure_rows]

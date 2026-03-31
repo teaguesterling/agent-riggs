@@ -23,6 +23,7 @@ class StubPlugin:
         @click.command("stub-cmd")
         def stub_cmd() -> None:
             click.echo("stub")
+
         return [stub_cmd]
 
     def mcp_resources(self) -> list[tuple[str, Callable[..., Any]]]:
@@ -80,5 +81,6 @@ def test_service_unknown_plugin_raises(tmp_project: Path) -> None:
     with Store(db_path) as store:
         service = RiggsService(tmp_project, store, config)
         import pytest
+
         with pytest.raises(KeyError):
             service.plugin("nonexistent")

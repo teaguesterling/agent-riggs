@@ -122,6 +122,44 @@ to believe.*
 
 ---
 
+## Agent Riggs as a recursive viable system
+
+A correction to the framing above. agent-riggs is the suite's **System 3\***, but
+by Beer's recursion theorem a viable system *contains* viable systems — so
+agent-riggs is **itself a full VSM (Systems 1–5)**, not an audit function alone.
+"Add System 4" is not bolting an appendage onto a 3\*-only thing; it is
+*completing agent-riggs's own stack*. Mapping the internal tiers doubles as a
+gap analysis:
+
+| Internal tier | agent-riggs component | state |
+|---|---|---|
+| **S1 Operations** | ingest sources + per-tool pipelines (read → classify → score → store) | ✅ built |
+| **S2 Coordination** | service/assembly layer + shared DuckDB store (plugins don't collide) | ✅ built |
+| **S3 Control** | the ratchet *mechanism* + config thresholds (regulate ops, find candidates) | ✅ built, deterministic |
+| **S3\* Audit (internal)** | **recursive trust** — auditing its own sources / classifications / interpreters | ❌ missing → this synthesis adds it |
+| **S4 Intelligence** | hypotheses, experiment design (the A/B factory), LLM interpretation | ❌ missing → this synthesis adds it |
+| **S5 Policy/Identity** | charter + invariants; *what S4 may do autonomously vs must escalate* | ⚠️ implicit (in docs as principles, not a governing tier) |
+
+So the built system is **S1–S3-heavy, S4/3\*/S5-light** — and the synthesis is
+exactly the upper tiers it lacks. That, not novelty for its own sake, is the
+argument for building it now.
+
+**This *homes* the open questions instead of leaving them loose:**
+- **Experiment governance** is agent-riggs's own **S5/S3**: its internal policy on
+  what its S4 may perturb and with what blast radius — escalating to the *suite's*
+  S5 (the human / CLAUDE.md) for anything risky. The human-gated promotion means
+  agent-riggs deliberately **delegates its *ultimate* S5 upward** to the human;
+  but it still needs an *explicit internal S5* to govern its own S4.
+- **Recursive trust** is its internal **S3\***: the audit channel turned on
+  itself, scoring whether its own intelligence is reliable. Not an add-on to the
+  trust engine — the same function applied recursively.
+
+**Suite-level recursion (orientation):** kibitzer = the suite's within-session
+control (S1–S3); agent-riggs = the suite's S3\* (audit) — carrying the
+intelligence the suite needs *via its own internal S4* looking outward at suite
+behavior; the human + CLAUDE.md = the suite's S5. Each tier, one level down, is a
+whole viable system again.
+
 ## Sequencing (each step standalone-valuable; earn the meta-level)
 
 0. **Duck-parser for transcripts** — transcripts → table; rewrite `bypass_probe`

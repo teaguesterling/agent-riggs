@@ -162,8 +162,18 @@ whole viable system again.
 
 ## Sequencing (each step standalone-valuable; earn the meta-level)
 
-0. **Duck-parser for transcripts** — transcripts → table; rewrite `bypass_probe`
-   as SQL to validate. Wins for fledgling *and* lays the substrate. Lowest risk.
+0. **Duck-parser for transcripts** ✓ *(done 2026-06-20)* — turned out fledgling
+   **already ships it**: `sql/conversations.sql` is a `read_json_auto` parser
+   with `tool_calls()`, `content_blocks()`, and a `bash_commands()` macro that
+   already classifies each shell command by `category` **and** a `replaceable_by`
+   column (sitting_duck/duck_tails/read_lines), plus `session_summary()` with
+   pre-computed `bash_replaceable_calls`. Validated by rewriting bypass_probe as
+   SQL (`retritis/scripts/bypass.sql`) — it reproduces the preference pattern
+   (jetsam strongest, squackit weakest). **Implication for Step 1:**
+   `replaceable_by` is essentially the ratchet's tool-promotion signal, already
+   maintained in fledgling — Step 1 inherits a richer classification than this
+   spec assumed. (Open: fledgling's bash taxonomy is broader than bypass_probe's
+   precise patterns; decide whether to adopt fledgling's as canonical.)
 1. **Wire the session's work into the existing store** — `bypass_probe` /
    `nudge_lift` / kibitzer trials become an ingest source + SQL views. The
    designed home already exists; this is mostly plumbing.

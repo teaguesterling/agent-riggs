@@ -87,6 +87,22 @@ Active ratchet candidates: 2
 
 ## Trust Commands
 
+### agent-riggs gate
+
+Fail-closed trust gate check. Exit code `0` = allow, `2` = deny. Intended
+for harness hooks: consult it before granting the agent expanded capability.
+Denies on absent or unverifiable trust state, trust below the gate
+threshold, or a recent violation. See [Trust Integrity](trust-integrity.md).
+
+```bash
+agent-riggs gate
+```
+
+```
+DENY: no verified trust history; unknown subjects are low trust (fail closed)
+trust: 0.00 / 0.00 / 0.00 (state: absent)
+```
+
 ### agent-riggs trust current
 
 Detailed trust scores.

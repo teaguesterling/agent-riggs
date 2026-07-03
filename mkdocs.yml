@@ -12,6 +12,7 @@ nav:
   - Home: index.md
   - Tutorial: tutorial.md
   - The Ratchet: the-ratchet.md
+  - Trust Integrity: trust-integrity.md
   - Reference:
     - CLI: cli-reference.md
     - Configuration: configuration.md

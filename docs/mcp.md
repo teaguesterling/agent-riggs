@@ -51,6 +51,14 @@ Get trust scores, optionally with history.
 
 **With window:** Returns current scores plus the last N trust entries.
 
+Current scores come from the verified out-of-tree trust ledger; absent or tampered state reads as low trust (fail closed). See [Trust Integrity](trust-integrity.md).
+
+### RiggsGate
+
+Fail-closed gate decision for capability-expanding actions. No parameters.
+
+Returns: `allowed` (bool), `reason`, `trust_1`/`trust_5`/`trust_15`, and the ledger `state` (`ok` / `absent` / `tampered`). Denies on absent or unverifiable trust state, trust below the gate threshold, or a violation within the holdoff window.
+
 ### RiggsMetrics
 
 Get ratchet metrics for a time period.
@@ -84,6 +92,6 @@ Returns: sandbox profiles with grades, headroom, and tightening recommendations.
 
 ## Read-Only Guarantee
 
-The MCP server opens the DuckDB store with `read_only=True`. This is enforced structurally — the database connection rejects any write operation. Agents can query freely without risk of data corruption.
+The MCP server opens the DuckDB store with `read_only=True`, and trust reads go to the verified out-of-tree ledger. Note the store's read-only mode protects riggs' own connection against accidental writes; it is not what protects trust integrity — the ledger is (see [Trust Integrity](trust-integrity.md)).
 
 All mutations go through the CLI (`agent-riggs ingest`, `agent-riggs ratchet promote`, etc.) which requires human action.

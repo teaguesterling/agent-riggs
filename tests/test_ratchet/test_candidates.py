@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from agent_riggs.config import RatchetConfig
 from agent_riggs.plugins.trust import TRUST_DDL
@@ -27,7 +27,8 @@ def _seed_failures(
                 _failure_id_seq + 10000,
                 session,
                 project,
-                datetime(2026, 3, 29, 10, 0, 0, tzinfo=UTC),
+                # Relative to now: a fixed date rots out of the lookback window.
+                datetime.now(UTC) - timedelta(days=1),
                 category,
                 tool,
                 mode,

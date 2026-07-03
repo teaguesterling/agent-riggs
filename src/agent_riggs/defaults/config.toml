@@ -16,6 +16,14 @@ auto_tighten_threshold = 0.5
 loosen_threshold = 0.9
 loosen_sustained_turns = 20
 
+# Security-sensitive gate policy. NOTE: the [trust] section is only ever
+# read from these shipped defaults or from policy.toml in the out-of-tree
+# state directory — never from the project's .riggs/config.toml, which the
+# scored subject can edit.
+initial_trust = 0.4
+gate_threshold = 0.5
+violation_holdoff_turns = 20
+
 [ratchet]
 min_frequency = 5
 min_sessions = 3

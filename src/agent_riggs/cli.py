@@ -37,8 +37,13 @@ def init() -> None:
         config_path.write_text(defaults_ref.read_text(encoding="utf-8"))
 
     from agent_riggs.assembly import assemble
+    from agent_riggs.trust.ledger import TrustLedger
 
     service = assemble(project_root)
+
+    # Create the out-of-tree trust state dir + signing key up front.
+    ledger = TrustLedger(project_root)
+    ledger.ensure_initialized()
 
     tools = []
     for name in ("kibitzer", "blq", "jetsam", "fledgling"):
@@ -46,6 +51,7 @@ def init() -> None:
             tools.append(name)
 
     click.echo(f"Initialized .riggs/ in {project_root}")
+    click.echo(f"Trust state directory: {ledger.dir}")
     if tools:
         click.echo(f"Discovered tools: {', '.join(tools)}")
     else:
@@ -58,14 +64,22 @@ def init() -> None:
 def ingest() -> None:
     """Ingest session data from sibling tools."""
     from agent_riggs.assembly import assemble
+    from agent_riggs.trust.ledger import LedgerIntegrityError
 
     project_root = find_project_root()
     service = assemble(project_root)
 
     ingest_plugin = service.plugin("ingest")
-    result = ingest_plugin.run()
+    try:
+        result = ingest_plugin.run()
+    except LedgerIntegrityError as exc:
+        click.echo(f"REFUSED: {exc}", err=True)
+        service.store.close()
+        raise SystemExit(2) from exc
 
     click.echo(f"Ingested {result.turns_ingested} turns from {result.sources_read}")
+    if result.duplicates_skipped:
+        click.echo(f"Skipped {result.duplicates_skipped} already-recorded events")
     if result.failures_recorded:
         click.echo(f"Recorded {result.failures_recorded} failures")
 
@@ -84,8 +98,12 @@ def status() -> None:
     data = trust_plugin.current()
 
     if not data["has_data"]:
-        click.echo("trust: no data yet")
-        click.echo("\nRun `agent-riggs ingest` after a session.")
+        if data.get("state") == "tampered":
+            click.echo("trust: STATE FAILED INTEGRITY VERIFICATION (fail closed, low trust)")
+            click.echo(f"       {data.get('detail', '')}")
+        else:
+            click.echo("trust: no verified data yet (low trust)")
+            click.echo("\nRun `agent-riggs ingest` after a session.")
     else:
         click.echo(
             f"trust: {data['trust_1']:.2f} / {data['trust_5']:.2f} / {data['trust_15']:.2f}"
@@ -93,6 +111,30 @@ def status() -> None:
         click.echo("       now    session  baseline")
 
     service.store.close()
+
+
+# --- Gate command ---
+
+
+@main.command("gate")
+def gate_cmd() -> None:
+    """Fail-closed trust gate check (exit 0 = allow, 2 = deny).
+
+    Intended for harness hooks: consult this before granting the agent
+    expanded capability. Denies on absent/tampered trust state, low trust,
+    or recent violations.
+    """
+    from agent_riggs.trust.gate import TrustGate
+
+    decision = TrustGate(find_project_root()).check()
+    verdict = "ALLOW" if decision.allowed else "DENY"
+    click.echo(f"{verdict}: {decision.reason}")
+    click.echo(
+        f"trust: {decision.trust_1:.2f} / {decision.trust_5:.2f} / {decision.trust_15:.2f} "
+        f"(state: {decision.state})"
+    )
+    if not decision.allowed:
+        raise SystemExit(2)
 
 
 # --- Trust commands ---
@@ -176,6 +218,10 @@ def ratchet_promote(key: str, reason: str | None) -> None:
         click.echo(f"Promoted: {key}")
     except KeyError:
         click.echo(f"No candidate with key: {key}", err=True)
+    except PermissionError as exc:
+        click.echo(f"DENIED: {exc}", err=True)
+        service.store.close()
+        raise SystemExit(2) from exc
     service.store.close()
 
 

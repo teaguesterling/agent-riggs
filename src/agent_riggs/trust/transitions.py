@@ -27,12 +27,17 @@ def recommend_transition(
     t1: float,
     t5: float,
     t15: float,
-    turn_count: int,
+    sustained_high_turns: int,
     config: TrustConfig,
 ) -> Recommendation | None:
     """Evaluate trust state and return a recommendation, or None if healthy.
 
     Rules are evaluated in priority order (most urgent first).
+
+    ``sustained_high_turns`` is the number of *consecutive trailing* turns
+    with trust above the loosen threshold — not total elapsed turns. A late
+    burst of successes in a long session must not satisfy "sustained".
+    Callers derive it from the verified ledger.
     """
     # Auto-tighten: both short and session windows are bad
     if t1 < config.tighten_threshold and t5 < config.auto_tighten_threshold:
@@ -63,15 +68,18 @@ def recommend_transition(
             trust_5=t5,
         )
 
-    # Loosen: sustained high trust
+    # Loosen: trust held above threshold for N consecutive turns
     if (
         t1 > config.loosen_threshold
         and t5 > config.loosen_threshold - 0.1
-        and turn_count >= config.loosen_sustained_turns
+        and sustained_high_turns >= config.loosen_sustained_turns
     ):
         return Recommendation(
             action=TransitionAction.LOOSEN,
-            reason=f"trust_1={t1:.2f} and trust_5={t5:.2f} sustained for {turn_count} turns",
+            reason=(
+                f"trust_1={t1:.2f} and trust_5={t5:.2f} sustained for "
+                f"{sustained_high_turns} consecutive turns"
+            ),
             trust_1=t1,
             trust_5=t5,
         )

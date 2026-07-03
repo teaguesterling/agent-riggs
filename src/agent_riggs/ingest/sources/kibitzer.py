@@ -1,12 +1,18 @@
-"""Kibitzer ingest source — reads .kibitzer/state.json and intercept.log."""
+"""Kibitzer ingest source — reads .kibitzer/state.json and intercept.log.
+
+Provenance: SELF_REPORTED. The intercept log lives in the project tree and
+its ``success`` field is supplied by the scored session, so it is treated as
+an unverified claim — it can hold or lower trust, never raise it.
+"""
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from agent_riggs.trust.events import EventCategory, TurnEvent
+from agent_riggs.trust.events import EventCategory, Provenance, TurnEvent
 
 
 class KibitzerSource:
@@ -29,9 +35,11 @@ class KibitzerSource:
 
     def _read_state(self, project_root: Path) -> dict:
         state_path = project_root / ".kibitzer" / "state.json"
-        if state_path.exists():
-            return json.loads(state_path.read_text())
-        return {}
+        try:
+            state = json.loads(state_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return {}
+        return state if isinstance(state, dict) else {}
 
     def _parse_intercept_log(
         self,
@@ -46,10 +54,17 @@ class KibitzerSource:
                 line = line.strip()
                 if not line:
                     continue
-                entry = json.loads(line)
-                ts = self._parse_timestamp(entry.get("timestamp", ""))
+                # One malformed (subject-controlled) line must not abort ingest.
+                try:
+                    entry = json.loads(line)
+                    if not isinstance(entry, dict):
+                        continue
+                    ts = self._parse_timestamp(entry.get("timestamp", ""))
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    continue
                 if since and ts < since:
                     continue
+                digest = hashlib.sha256(line.encode()).hexdigest()[:16]
                 events.append(
                     TurnEvent(
                         session_id=session_id,
@@ -60,6 +75,8 @@ class KibitzerSource:
                         mode=mode,
                         event_category=self._classify(entry),
                         metadata=entry,
+                        provenance=Provenance.SELF_REPORTED,
+                        event_uid=f"kibitzer:{i}:{digest}",
                     )
                 )
         return events
@@ -76,5 +93,5 @@ class KibitzerSource:
     def _parse_timestamp(self, ts_str: str) -> datetime:
         if not ts_str:
             return datetime.now(UTC)
-        ts_str = ts_str.replace("Z", "+00:00")
+        ts_str = str(ts_str).replace("Z", "+00:00")
         return datetime.fromisoformat(ts_str)

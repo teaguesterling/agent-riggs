@@ -1,4 +1,10 @@
-"""blq ingest source — reads .bird/blq.duckdb build/test execution data."""
+"""blq ingest source — reads .bird/blq.duckdb build/test execution data.
+
+Provenance: OBSERVED. blq records real process exit codes at execution time,
+independently of what the session claims about its own success. (The
+database file itself is only as protected as the deployment makes it — see
+the trust-integrity docs.)
+"""
 
 from __future__ import annotations
 
@@ -7,7 +13,7 @@ from pathlib import Path
 
 import duckdb
 
-from agent_riggs.trust.events import EventCategory, TurnEvent
+from agent_riggs.trust.events import EventCategory, Provenance, TurnEvent
 
 
 class BlqSource:
@@ -64,6 +70,8 @@ class BlqSource:
                         "source": "blq",
                         "invocation_id": str(inv_id),
                     },
+                    provenance=Provenance.OBSERVED,
+                    event_uid=f"blq:{inv_id}",
                 )
             )
         return events

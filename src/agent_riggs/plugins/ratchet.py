@@ -59,6 +59,16 @@ class RatchetPlugin:
     def promote(self, key, reason=None):
         for c in self.candidates():
             if c.candidate_key == key:
+                if c.candidate_type == "tool_promotion":
+                    # Capability-expanding: consult the fail-closed trust gate.
+                    # (Constraint promotions tighten and are never gated.)
+                    from agent_riggs.trust.gate import TrustGate
+
+                    decision = TrustGate(self.service.project_root).check()
+                    if not decision.allowed:
+                        raise PermissionError(
+                            f"trust gate denied promotion of {key!r}: {decision.reason}"
+                        )
                 record_decision(self.service.store, c, "promoted", reason)
                 return
         raise KeyError(f"No candidate with key: {key}")

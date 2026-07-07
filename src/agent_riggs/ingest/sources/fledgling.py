@@ -1,12 +1,19 @@
-"""Fledgling ingest source — reads Claude Code conversation JSONL logs."""
+"""Fledgling ingest source — reads Claude Code conversation JSONL logs.
+
+Provenance: SELF_REPORTED. Transcripts are written by the harness, but they
+live under the subject's home directory and the ``tool_success`` recorded
+here is assumed rather than verified against real outcomes — so these events
+can hold or lower trust, never raise it.
+"""
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from agent_riggs.trust.events import EventCategory, TurnEvent
+from agent_riggs.trust.events import EventCategory, Provenance, TurnEvent
 
 # Tools that have structured alternatives (from kibitzer's interceptor patterns)
 _BASH_PATTERNS_WITH_ALTERNATIVES = {
@@ -30,7 +37,7 @@ class FledglingSource:
         # Check if any project dir has JSONL files
         for project_dir in claude_dir.iterdir():
             if project_dir.is_dir():
-                for f in project_dir.glob("*.jsonl"):
+                for _ in project_dir.glob("*.jsonl"):
                     return True
         return False
 
@@ -75,6 +82,12 @@ class FledglingSource:
                         tool_name = block.get("name", "unknown")
                         tool_input = block.get("input", {})
                         category = self._classify(tool_name, tool_input)
+                        block_id = block.get("id")
+                        if block_id:
+                            uid = f"fledgling:{block_id}"
+                        else:
+                            raw = f"{session_id}:{ts.isoformat()}:{turn_counter}:{tool_name}"
+                            uid = f"fledgling:{hashlib.sha256(raw.encode()).hexdigest()[:16]}"
                         events.append(
                             TurnEvent(
                                 session_id=session_id,
@@ -89,6 +102,8 @@ class FledglingSource:
                                     "model": message.get("model"),
                                     "source": "fledgling",
                                 },
+                                provenance=Provenance.SELF_REPORTED,
+                                event_uid=uid,
                             )
                         )
 

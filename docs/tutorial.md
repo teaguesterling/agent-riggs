@@ -193,11 +193,11 @@ When trust drops below configured thresholds, Riggs generates recommendations:
 | trust_1 > 0.9 AND trust_5 > 0.8 for 20+ turns | Suggest loosening |
 | trust_15 < 0.5 | Flag: "project configuration needs review" |
 
-In our second session, trust_1 hit 0.24 — below the tighten threshold. If kibitzer were running, Riggs would write a recommendation to `.kibitzer/state.json`, and kibitzer's mode controller would pick it up.
+In our second session, trust_1 hit 0.24 — below the tighten threshold. Each `agent-riggs ingest` writes the current recommendation to `.kibitzer/state.json`, and kibitzer's mode controller picks it up.
 
-This is how Riggs and kibitzer work together: Riggs observes across sessions and recommends. Kibitzer acts within the session. Riggs never enforces directly — it informs kibitzer's rules.
+This is how Riggs and kibitzer work together: Riggs observes across sessions and recommends; kibitzer controls the mode within the session. Riggs' own enforcement point is the **fail-closed trust gate** (`agent-riggs gate`), which capability-expanding actions must pass — see [Trust Integrity](trust-integrity.md).
 
-All thresholds are configurable in `.riggs/config.toml` under `[trust]`. See [Configuration](configuration.md) for details.
+Trust thresholds and gate policy are **not** read from `.riggs/config.toml` (the scored agent can edit that file); they come from shipped defaults plus `policy.toml` in the out-of-tree state directory. See [Trust Integrity](trust-integrity.md) and [Configuration](configuration.md) for details.
 
 ## 8. Ratchet Candidates
 

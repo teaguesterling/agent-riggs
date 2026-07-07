@@ -1,4 +1,12 @@
-"""Configuration loading: merge defaults with .riggs/config.toml."""
+"""Configuration loading: merge defaults with .riggs/config.toml.
+
+Security note: the ``[trust]`` section is *never* read from the project's
+``.riggs/config.toml``. That file is writable by the scored subject, and
+trust scoring/gating policy derived from it would be forgeable (the subject
+could set ``score_failure = 1.0`` or ``gate_threshold = 0.0``). Trust policy
+comes from the shipped defaults, optionally overridden by ``policy.toml`` in
+the out-of-tree state directory (see :mod:`agent_riggs.statedir`).
+"""
 
 from __future__ import annotations
 
@@ -7,6 +15,8 @@ from dataclasses import dataclass, field, fields
 from importlib import resources
 from pathlib import Path
 from typing import Any
+
+from agent_riggs.statedir import state_dir_for
 
 
 @dataclass
@@ -25,6 +35,12 @@ class TrustConfig:
     auto_tighten_threshold: float = 0.5
     loosen_threshold: float = 0.9
     loosen_sustained_turns: int = 20
+    # Seed for a subject with no verified history: LOW, must accrue.
+    initial_trust: float = 0.4
+    # The gate denies when min(t1, t5) is below this.
+    gate_threshold: float = 0.5
+    # A violation within this many ledger records keeps the gate closed.
+    violation_holdoff_turns: int = 20
 
 
 @dataclass
@@ -85,8 +101,29 @@ def _dict_to_dataclass(cls: type, data: dict[str, Any]) -> Any:
     return cls(**{k: v for k, v in data.items() if k in known})
 
 
+def load_trusted_trust_config(project_root: Path | str) -> TrustConfig:
+    """Load the trust policy from trusted sources only.
+
+    Sources, in order: shipped defaults, then ``policy.toml`` in the
+    out-of-tree state directory. The subject-writable
+    ``.riggs/config.toml`` is deliberately ignored — trust policy read from
+    the project tree would let the scored subject weaken its own scoring
+    and gate thresholds.
+    """
+    merged = _load_defaults().get("trust", {})
+    policy_path = state_dir_for(project_root) / "policy.toml"
+    if policy_path.exists():
+        policy = tomllib.loads(policy_path.read_text(encoding="utf-8"))
+        merged = _deep_merge(merged, policy.get("trust", {}))
+    return _dict_to_dataclass(TrustConfig, merged)
+
+
 def load_config(project_root: Path) -> RiggsConfig:
-    """Load config: defaults merged with .riggs/config.toml."""
+    """Load config: defaults merged with .riggs/config.toml.
+
+    The ``[trust]`` section is sourced via :func:`load_trusted_trust_config`
+    and cannot be overridden from the project tree (see module docstring).
+    """
     merged = _load_defaults()
 
     user_path = project_root / ".riggs" / "config.toml"
@@ -95,7 +132,7 @@ def load_config(project_root: Path) -> RiggsConfig:
         merged = _deep_merge(merged, user)
 
     return RiggsConfig(
-        trust=_dict_to_dataclass(TrustConfig, merged.get("trust", {})),
+        trust=load_trusted_trust_config(project_root),
         ratchet=_dict_to_dataclass(RatchetConfig, merged.get("ratchet", {})),
         sandbox=_dict_to_dataclass(SandboxConfig, merged.get("sandbox", {})),
         metrics=_dict_to_dataclass(MetricsConfig, merged.get("metrics", {})),

@@ -33,7 +33,7 @@ Agent Riggs reads from sibling tools but never writes to their state. Each tool 
 | `success: false` | failure | 0.2 |
 | `success: false`, `error: "old_string not found"` | failure | 0.2 |
 
-**What Riggs writes back:** Trust-informed transition recommendations to `.kibitzer/state.json`. Kibitzer's mode controller reads these and acts on them.
+**What Riggs writes back:** Trust-informed transition recommendations to `.kibitzer/state.json` (written by each `agent-riggs ingest`, under the `riggs` key). Kibitzer's mode controller reads these and acts on them. The recommendation is advisory; the authoritative decision is the fail-closed gate over the verified trust ledger (see [Trust Integrity](trust-integrity.md)) — LOOSEN is only published when the gate allows it. Note: kibitzer's log entries are treated as *self-reported* evidence and can never raise trust, only hold or lower it.
 
 **When absent:** Without kibitzer, Riggs has no primary data source. The trust engine and ratchet work but have nothing to analyze.
 

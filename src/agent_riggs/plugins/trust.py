@@ -96,29 +96,36 @@ class TrustPlugin:
         return [("riggs://trust", self._trust_resource)]
 
     def mcp_tools(self) -> list[tuple[str, Callable[..., Any]]]:
-        return [("RiggsTrust", self._trust_tool)]
+        return [("RiggsTrust", self._trust_tool), ("RiggsGate", self._gate_tool)]
 
     def current(self) -> dict[str, Any]:
-        """Get the most recent trust scores for the current project."""
-        row = self.store.execute(
-            """
-            SELECT trust_1, trust_5, trust_15, session_id, turn_number
-            FROM turns
-            WHERE project = ?
-            ORDER BY timestamp DESC
-            LIMIT 1
-            """,
-            [self._project_name()],
-        ).fetchone()
-        if row is None:
-            return {"trust_1": 1.0, "trust_5": 1.0, "trust_15": 1.0, "has_data": False}
+        """Get the current *verified* trust scores for this project.
+
+        Reads the out-of-tree HMAC-chained ledger, never the subject-writable
+        DuckDB store. Absent or tampered state reads as LOW trust (0.0), not
+        max — fail closed.
+        """
+        from agent_riggs.trust.ledger import TrustLedger
+
+        state = TrustLedger(self.service.project_root).verify()
+        if state.status != "ok" or state.last is None:
+            return {
+                "trust_1": 0.0,
+                "trust_5": 0.0,
+                "trust_15": 0.0,
+                "has_data": False,
+                "state": state.status,
+                "detail": state.detail,
+            }
+        last = state.last
         return {
-            "trust_1": row[0],
-            "trust_5": row[1],
-            "trust_15": row[2],
-            "session_id": row[3],
-            "turn_number": row[4],
+            "trust_1": last.t1,
+            "trust_5": last.t5,
+            "trust_15": last.t15,
+            "session_id": last.session_id,
+            "turn_number": last.seq,
             "has_data": True,
+            "state": state.status,
         }
 
     def history(self, limit: int = 50) -> list[dict[str, Any]]:
@@ -151,7 +158,15 @@ class TrustPlugin:
     def _trust_resource(self) -> str:
         data = self.current()
         if not data["has_data"]:
-            return "No trust data yet. Run `agent-riggs ingest` after a session."
+            if data.get("state") == "tampered":
+                return (
+                    "Trust state failed integrity verification (fail closed, low trust). "
+                    f"Detail: {data.get('detail', '')}"
+                )
+            return (
+                "No verified trust data yet (low trust). "
+                "Run `agent-riggs ingest` after a session."
+            )
         return (
             f"trust: {data['trust_1']:.2f} / {data['trust_5']:.2f} / {data['trust_15']:.2f}\n"
             f"       now    session  baseline"
@@ -161,3 +176,11 @@ class TrustPlugin:
         if window:
             return {"current": self.current(), "history": self.history(limit=window)}
         return {"current": self.current()}
+
+    def _gate_tool(self) -> dict[str, Any]:
+        """Fail-closed gate decision for capability-expanding actions."""
+        from dataclasses import asdict
+
+        from agent_riggs.trust.gate import TrustGate
+
+        return asdict(TrustGate(self.service.project_root).check())

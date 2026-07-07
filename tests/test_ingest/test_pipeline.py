@@ -59,6 +59,11 @@ def test_ingest_stores_turns(tmp_project: Path) -> None:
 
 
 def test_ingest_computes_trust_scores(tmp_project: Path) -> None:
+    """Self-reported kibitzer successes are recorded but cannot inflate trust.
+
+    An unknown subject starts at ``initial_trust`` and self-reported success
+    holds trust at most where it is (GHSA: self-report must not raise trust).
+    """
     _setup_kibitzer(tmp_project)
     config = load_config(tmp_project)
     db_path = tmp_project / ".riggs" / "store.duckdb"
@@ -79,9 +84,36 @@ def test_ingest_computes_trust_scores(tmp_project: Path) -> None:
             "SELECT trust_1, trust_5, trust_15 FROM turns ORDER BY turn_number DESC LIMIT 1"
         ).fetchone()
         assert row is not None
-        assert row[0] > 0.9
-        assert row[1] > 0.9
-        assert row[2] > 0.9
+        assert row[0] <= config.trust.initial_trust + 1e-9
+        assert row[1] <= config.trust.initial_trust + 1e-9
+        assert row[2] <= config.trust.initial_trust + 1e-9
+
+
+def test_ingest_skips_malformed_log_lines(tmp_project: Path) -> None:
+    """One malformed subject-controlled line must not abort the whole ingest."""
+    _setup_kibitzer(tmp_project)
+    with (tmp_project / ".kibitzer" / "intercept.log").open("a") as f:
+        f.write("{not valid json\n")
+        f.write(
+            json.dumps({"timestamp": "2026-03-29T10:10:00Z", "tool": "Edit", "success": False})
+            + "\n"
+        )
+
+    config = load_config(tmp_project)
+    db_path = tmp_project / ".riggs" / "store.duckdb"
+
+    with Store(db_path) as store:
+        from agent_riggs.plugins.trust import TRUST_DDL
+
+        store.ensure_schema(TRUST_DDL)
+
+        result = ingest(
+            store=store,
+            project_root=tmp_project,
+            sources=[KibitzerSource()],
+            trust_config=config.trust,
+        )
+        assert result.turns_ingested == 4  # 3 valid + 1 after the bad line
 
 
 def test_ingest_skips_missing_sources(tmp_project: Path) -> None:

@@ -25,15 +25,31 @@ Riggs uses a **3-window exponential weighted moving average (EWMA)** similar to 
 
 Each turn is scored (0.0–1.0) based on event type: successful tool calls, mode switches, failures, constraint violations.
 
-### Trust-Informed Transitions
+Scores are integrity-protected (see [Trust Integrity](docs/trust-integrity.md)):
+- Authoritative trust state lives in an **append-only, HMAC-chained ledger
+  outside the project tree** — not in the project-local DuckDB store, which is
+  analytics only. Deleting or editing project files never raises trust.
+- Events are tagged **observed** (independently recorded outcomes, e.g. blq
+  exit codes) or **self-reported** (the session's own claims). Self-reported
+  events can hold or lower trust but never raise it.
+- An unknown subject starts **low** (`initial_trust`, default 0.4) and accrues
+  trust from observed evidence. Absent or tampered state reads as low trust —
+  fail closed, never fail open.
+
+### Trust-Informed Transitions and the Gate
 Riggs monitors trust windows and recommends tightening/loosening:
 - t1 < 0.3: Recommend tightening
 - t1 < 0.3 AND t5 < 0.5: Auto-tighten
-- t5 declining 10+ turns: Coach message
-- t1 > 0.9 AND t5 > 0.8 for 20+ turns: Suggest loosening
+- t1 > 0.9 AND t5 > 0.8 held for 20+ consecutive turns: Suggest loosening
 - t15 < 0.5: Flag project config
 
-Recommendations are written to `.kibitzer/state.json`. Riggs never enforces directly — kibitzer controls the decision.
+Recommendations are written to `.kibitzer/state.json` after each ingest for
+kibitzer's mode controller to act on. Capability-expanding decisions
+additionally pass through the **fail-closed trust gate** (`agent-riggs gate`,
+the `RiggsGate` MCP tool, and tool promotions): the gate denies on absent or
+unverifiable trust state, insufficient trust, or recent violations. Mode
+control stays with kibitzer; the gate is the enforcement point riggs itself
+guarantees.
 
 ### Cross-Session Failure Stream
 Riggs ingests turn data from kibitzer and builds a cross-session failure stream. Each failure is categorized (path denial, edit failure, mode violation, etc.) and stored with the trust score at failure time.
@@ -84,15 +100,18 @@ The CLI and MCP server are thin shells that auto-discover and compose from regis
 
 ### DuckDB Persistence
 
-All data is stored in a local DuckDB database (`.riggs/store.duckdb`). Schema is managed idempotently — plugins declare their tables via `CREATE TABLE IF NOT EXISTS`. No migrations or daemon required.
+Analytics data (turns, failure stream, ratchet decisions, metrics) is stored in a local DuckDB database (`.riggs/store.duckdb`). Schema is managed idempotently — plugins declare their tables via `CREATE TABLE IF NOT EXISTS`. No migrations or daemon required.
+
+The authoritative **trust state** does not live here: it lives in an append-only, HMAC-chained ledger outside the project tree, so the scored agent cannot reset or rewrite it. See [Trust Integrity](docs/trust-integrity.md).
 
 ## Usage
 
 ### CLI Commands
 
 ```bash
-agent-riggs init                    # Initialize .riggs/ config and store
+agent-riggs init                    # Initialize .riggs/ config, store, and trust state dir
 agent-riggs ingest                  # Pull events from sibling tools (kibitzer, blq, etc.)
+agent-riggs gate                    # Fail-closed trust gate check (exit 0 allow / 2 deny)
 agent-riggs status                  # Show current trust scores and recent events
 agent-riggs trust [--window {1,5,15}]
                                     # Display trust window and trajectory
@@ -125,6 +144,7 @@ Agents can then access:
 
 **Tools** (read-only):
 - `RiggsTrust` — Query trust window and history
+- `RiggsGate` — Fail-closed gate decision for capability-expanding actions
 - `RiggsMetrics` — Compute metrics over a period
 - `RiggsFailures` — Query failure stream by category
 - `RiggsSandbox` — Get sandbox profile for a command
@@ -133,7 +153,7 @@ Agents can then access:
 
 ### .riggs/config.toml
 
-Configuration is loaded from `.riggs/config.toml` with sensible defaults shipped in the package. User config merges over defaults.
+Configuration is loaded from `.riggs/config.toml` with sensible defaults shipped in the package. User config merges over defaults — **except the `[trust]` section**: trust scoring and gate policy are never read from the project tree (the scored agent can edit it). Trust policy comes from the shipped defaults, optionally overridden by `policy.toml` in the out-of-tree state directory (see [Trust Integrity](docs/trust-integrity.md)).
 
 Example sections:
 
@@ -184,8 +204,8 @@ path = ".riggs/store.duckdb"
 ### Reads Everything, Writes Nothing (to other tools)
 Riggs is a **read-only observer** of the Rigged tool suite. It ingests state from kibitzer, blq, jetsam, and fledgling but never mutates their configs or data directly. Promotions are written to `.riggs/` only, then reviewed by humans before application.
 
-### Human in the Loop
-Riggs recommends but never enforces. All promotion decisions require human review and approval. Constraint tightening is suggested, not automatic.
+### Human in the Loop, Gate at the Boundary
+Promotion decisions require human review and approval, and mode control stays with kibitzer. What riggs itself guarantees is the **fail-closed trust gate**: capability-expanding actions (tool promotions, LOOSEN recommendations, `agent-riggs gate` consumers) are denied unless verified trust history supports them. Constraint tightening is suggested, never gated.
 
 ### Specified Throughout
 Every threshold, weight, and heuristic is configurable in `.riggs/config.toml`. Defaults are sensible but tunable.

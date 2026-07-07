@@ -4,7 +4,14 @@ Agent Riggs is configured through `.riggs/config.toml`. When you run `agent-rigg
 
 ## [trust]
 
-Trust scoring weights and EWMA parameters.
+Trust scoring weights, EWMA parameters, and gate policy.
+
+**Security note:** unlike every other section, `[trust]` is **not** read from
+the project's `.riggs/config.toml` — that file is writable by the scored
+agent, which could otherwise weaken its own scoring and gate thresholds. The
+values here are the shipped defaults; to override them, put a `[trust]`
+section in `policy.toml` inside the out-of-tree state directory (see
+[Trust Integrity](trust-integrity.md)).
 
 ### Scoring Weights
 
@@ -39,7 +46,15 @@ When trust crosses these thresholds, Riggs generates recommendations:
 | `tighten_threshold` | float | 0.3 | trust_1 below this triggers a tightening recommendation |
 | `auto_tighten_threshold` | float | 0.5 | trust_5 below this (combined with low trust_1) triggers auto-tighten |
 | `loosen_threshold` | float | 0.9 | trust_1 above this may trigger a loosening suggestion |
-| `loosen_sustained_turns` | int | 20 | Turns of sustained high trust required before suggesting loosening |
+| `loosen_sustained_turns` | int | 20 | Consecutive trailing turns of high trust required before suggesting loosening |
+
+### Gate Policy
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `initial_trust` | float | 0.4 | EWMA seed for a subject with no verified history (below the gate threshold: trust must be accrued) |
+| `gate_threshold` | float | 0.5 | The gate denies when min(trust_1, trust_5) is below this |
+| `violation_holdoff_turns` | int | 20 | A failure-class event within this many ledger records keeps the gate closed |
 
 ## [ratchet]
 

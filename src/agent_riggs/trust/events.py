@@ -18,6 +18,21 @@ class EventCategory(Enum):
     REPEATED_FAILURE = "repeated_failure"
 
 
+class Provenance(Enum):
+    """How an event's outcome was established.
+
+    OBSERVED: recorded by an independent process from the actual outcome
+    (e.g. a real exit code). May raise trust.
+
+    SELF_REPORTED: asserted by the scored subject, or read from a file the
+    subject can write. Must never raise trust — the pipeline applies these
+    with ``allow_increase=False`` so only claims against interest count.
+    """
+
+    OBSERVED = "observed"
+    SELF_REPORTED = "self_reported"
+
+
 @dataclass(frozen=True)
 class TurnEvent:
     session_id: str
@@ -28,3 +43,7 @@ class TurnEvent:
     mode: str | None
     event_category: EventCategory
     metadata: dict[str, Any] = field(default_factory=dict)
+    # Safe default: unknown provenance is treated as self-reported.
+    provenance: Provenance = Provenance.SELF_REPORTED
+    # Stable identity for ingest idempotency; derived by the source.
+    event_uid: str | None = None

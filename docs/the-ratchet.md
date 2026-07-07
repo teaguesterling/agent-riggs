@@ -32,7 +32,7 @@ When trust drops below thresholds, Riggs recommends action:
 | trust_1 > 0.9, trust_5 > 0.8 for 20+ turns | Suggest loosening |
 | trust_15 < 0.5 | "Project configuration needs review" |
 
-Riggs recommends. Kibitzer acts. Riggs never enforces directly.
+Riggs recommends; kibitzer controls the mode. Riggs' own enforcement point is the fail-closed trust gate: LOOSEN recommendations and tool promotions are denied unless verified trust history supports them (see [Trust Integrity](trust-integrity.md)).
 
 **Example:** The agent makes 5 consecutive failed edits. trust_1 drops to 0.18. Riggs writes a tighten recommendation to `.kibitzer/state.json`. Kibitzer's mode controller switches from `implement` to `debug`. The agent is now constrained to read-only tools until it can demonstrate it understands the problem.
 

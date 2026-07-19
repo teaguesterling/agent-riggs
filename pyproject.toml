@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-riggs"
-version = "0.1.1"
+version = "0.2.0"
 description = "Cross-session memory and analysis layer for the Rigged tool suite"
 requires-python = ">=3.11"
 license = "MIT"

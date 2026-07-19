@@ -12,6 +12,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+from agent_riggs.ingest.sources.base import Cursor, SourceBatch, read_new_lines
 from agent_riggs.trust.events import EventCategory, Provenance, TurnEvent
 
 # Generation tiers that don't require model inference
@@ -24,43 +25,43 @@ class LackpySource:
     def discover(self, project_root: Path) -> bool:
         return (project_root / ".lackpy" / "traces.jsonl").exists()
 
-    def read_events(self, project_root: Path, since: datetime | None) -> list[TurnEvent]:
+    def read_events(self, project_root: Path, cursor: Cursor | None) -> SourceBatch:
         log_path = project_root / ".lackpy" / "traces.jsonl"
         if not log_path.exists():
-            return []
+            return SourceBatch(cursor=dict(cursor or {}))
+
+        offset = (cursor or {}).get("trace_lines", 0)
+        lines, total = read_new_lines(log_path, offset)
 
         events: list[TurnEvent] = []
-        with log_path.open() as f:
-            for i, line in enumerate(f):
-                line = line.strip()
-                if not line:
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if not line:
+                continue
+            # One malformed line must not abort the whole ingest.
+            try:
+                entry = json.loads(line)
+                if not isinstance(entry, dict):
                     continue
-                # One malformed line must not abort the whole ingest.
-                try:
-                    entry = json.loads(line)
-                    if not isinstance(entry, dict):
-                        continue
-                    ts = self._parse_timestamp(entry.get("timestamp", ""))
-                except (json.JSONDecodeError, ValueError, TypeError):
-                    continue
-                if since and ts < since:
-                    continue
-                digest = hashlib.sha256(line.encode()).hexdigest()[:16]
-                events.append(
-                    TurnEvent(
-                        session_id=f"lackpy-{ts.strftime('%Y%m%d')}",
-                        turn_number=i + 1,
-                        timestamp=ts,
-                        tool_name="lackpy.delegate",
-                        tool_success=entry.get("success", False),
-                        mode=None,
-                        event_category=self._classify(entry),
-                        metadata=entry,
-                        provenance=Provenance.SELF_REPORTED,
-                        event_uid=f"lackpy:{i}:{digest}",
-                    )
+                ts = self._parse_timestamp(entry.get("timestamp", ""))
+            except (json.JSONDecodeError, ValueError, TypeError):
+                continue
+            digest = hashlib.sha256(line.encode()).hexdigest()[:16]
+            events.append(
+                TurnEvent(
+                    session_id=f"lackpy-{ts.strftime('%Y%m%d')}",
+                    turn_number=offset + i + 1,
+                    timestamp=ts,
+                    tool_name="lackpy.delegate",
+                    tool_success=entry.get("success", False),
+                    mode=None,
+                    event_category=self._classify(entry),
+                    metadata=entry,
+                    provenance=Provenance.SELF_REPORTED,
+                    event_uid=f"lackpy:{offset + i}:{digest}",
                 )
-        return events
+            )
+        return SourceBatch(events=events, cursor={"trace_lines": total})
 
     def _classify(self, entry: dict) -> EventCategory:
         if not entry.get("success", False):

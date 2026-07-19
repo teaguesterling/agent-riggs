@@ -13,6 +13,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+from agent_riggs.ingest.sources.base import Cursor, SourceBatch, read_new_lines
 from agent_riggs.trust.events import EventCategory, Provenance, TurnEvent
 
 # Tools that have structured alternatives (from kibitzer's interceptor patterns)
@@ -41,73 +42,73 @@ class FledglingSource:
                     return True
         return False
 
-    def read_events(self, project_root: Path, since: datetime | None) -> list[TurnEvent]:
+    def read_events(self, project_root: Path, cursor: Cursor | None) -> SourceBatch:
+        files_cursor: dict[str, int] = dict((cursor or {}).get("files", {}))
         jsonl_files = self._find_project_logs(project_root)
-        if not jsonl_files:
-            return []
 
         events: list[TurnEvent] = []
         turn_counter = 0
         for jsonl_path in jsonl_files:
-            with jsonl_path.open() as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
+            key = str(jsonl_path)
+            offset = files_cursor.get(key, 0)
+            lines, total = read_new_lines(jsonl_path, offset)
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                if record.get("type") != "assistant":
+                    continue
+
+                message = record.get("message", {})
+                content = message.get("content", [])
+                if not isinstance(content, list):
+                    continue
+
+                session_id = record.get("sessionId", "unknown")
+                ts = self._parse_timestamp(record.get("timestamp", ""))
+
+                for block in content:
+                    if not isinstance(block, dict):
                         continue
-                    try:
-                        record = json.loads(line)
-                    except json.JSONDecodeError:
+                    if block.get("type") != "tool_use":
                         continue
 
-                    if record.get("type") != "assistant":
-                        continue
-
-                    message = record.get("message", {})
-                    content = message.get("content", [])
-                    if not isinstance(content, list):
-                        continue
-
-                    session_id = record.get("sessionId", "unknown")
-                    ts = self._parse_timestamp(record.get("timestamp", ""))
-                    if since and ts < since:
-                        continue
-
-                    for block in content:
-                        if not isinstance(block, dict):
-                            continue
-                        if block.get("type") != "tool_use":
-                            continue
-
-                        turn_counter += 1
-                        tool_name = block.get("name", "unknown")
-                        tool_input = block.get("input", {})
-                        category = self._classify(tool_name, tool_input)
-                        block_id = block.get("id")
-                        if block_id:
-                            uid = f"fledgling:{block_id}"
-                        else:
-                            raw = f"{session_id}:{ts.isoformat()}:{turn_counter}:{tool_name}"
-                            uid = f"fledgling:{hashlib.sha256(raw.encode()).hexdigest()[:16]}"
-                        events.append(
-                            TurnEvent(
-                                session_id=session_id,
-                                turn_number=turn_counter,
-                                timestamp=ts,
-                                tool_name=tool_name,
-                                tool_success=True,
-                                mode=None,
-                                event_category=category,
-                                metadata={
-                                    "tool_input": tool_input,
-                                    "model": message.get("model"),
-                                    "source": "fledgling",
-                                },
-                                provenance=Provenance.SELF_REPORTED,
-                                event_uid=uid,
-                            )
+                    turn_counter += 1
+                    tool_name = block.get("name", "unknown")
+                    tool_input = block.get("input", {})
+                    category = self._classify(tool_name, tool_input)
+                    block_id = block.get("id")
+                    if block_id:
+                        uid = f"fledgling:{block_id}"
+                    else:
+                        raw = f"{session_id}:{ts.isoformat()}:{turn_counter}:{tool_name}"
+                        uid = f"fledgling:{hashlib.sha256(raw.encode()).hexdigest()[:16]}"
+                    events.append(
+                        TurnEvent(
+                            session_id=session_id,
+                            turn_number=turn_counter,
+                            timestamp=ts,
+                            tool_name=tool_name,
+                            tool_success=True,
+                            mode=None,
+                            event_category=category,
+                            metadata={
+                                "tool_input": tool_input,
+                                "model": message.get("model"),
+                                "source": "fledgling",
+                            },
+                            provenance=Provenance.SELF_REPORTED,
+                            event_uid=uid,
                         )
+                    )
+            files_cursor[key] = total
 
-        return events
+        return SourceBatch(events=events, cursor={"files": files_cursor})
 
     def _find_project_logs(self, project_root: Path) -> list[Path]:
         """Find JSONL files that belong to this project."""

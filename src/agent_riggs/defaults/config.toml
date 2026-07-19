@@ -29,6 +29,11 @@ min_frequency = 5
 min_sessions = 3
 min_success_rate = 0.8
 lookback_days = 30
+# Heed gate for nudged tool promotions (kibitzer A/B evidence).
+# Frequency alone never qualifies a candidate.
+min_nudge_trials = 5
+min_heed_rate = 0.25
+min_heed_lift = 0.0
 
 [sandbox]
 memory_headroom = 2.0
@@ -38,6 +43,10 @@ min_runs_for_tightening = 5
 
 [metrics]
 default_period_days = 30
+
+[briefing]
+lookback_days = 14
+top_tools = 5
 
 [store]
 path = ".riggs/store.duckdb"

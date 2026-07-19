@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import click
@@ -11,21 +11,49 @@ import click
 from agent_riggs.ingest.pipeline import IngestResult, ingest
 from agent_riggs.ingest.sources.blq import BlqSource
 from agent_riggs.ingest.sources.fledgling import FledglingSource
+from agent_riggs.ingest.sources.jetsam import JetsamSource
 from agent_riggs.ingest.sources.kibitzer import KibitzerSource
 from agent_riggs.ingest.sources.lackpy import LackpySource
+from agent_riggs.ingest.sources.nudge_trials import NudgeTrialsSource
 
 if TYPE_CHECKING:
     from agent_riggs.service import RiggsService
+
+INGEST_DDL = [
+    """
+    CREATE TABLE IF NOT EXISTS ingest_state (
+        project           VARCHAR NOT NULL,
+        source            VARCHAR NOT NULL,
+        cursor            JSON,
+        last_ingested_at  TIMESTAMPTZ,
+        PRIMARY KEY (project, source)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS nudge_trials (
+        trial_id       BIGINT PRIMARY KEY,
+        plugin         VARCHAR NOT NULL,
+        arm            VARCHAR NOT NULL,
+        heed           BOOLEAN,
+        turns_to_heed  INTEGER,
+        session_id     VARCHAR,
+        ts             TIMESTAMPTZ
+    )
+    """,
+]
 
 
 class IngestPlugin:
     name = "ingest"
 
+    def __init__(self, trials_path: Path | None = None) -> None:
+        self._trials_path = trials_path
+
     def bind(self, service: RiggsService) -> None:
         self.service = service
 
     def schema_ddl(self) -> list[str]:
-        return []
+        return list(INGEST_DDL)
 
     def cli_commands(self) -> list[click.Command]:
         return []
@@ -36,20 +64,26 @@ class IngestPlugin:
     def mcp_tools(self) -> list[tuple[str, Callable[..., Any]]]:
         return []
 
-    def run(self, since: datetime | None = None) -> IngestResult:
+    def run(self) -> IngestResult:
         sources = self._discover_sources()
         result = ingest(
             store=self.service.store,
             project_root=self.service.project_root,
             sources=sources,
             trust_config=self.service.config.trust,
-            since=since,
+            trials_source=NudgeTrialsSource(self._trials_path),
         )
         self._publish_recommendation()
         return result
 
     def _discover_sources(self) -> list[Any]:
-        return [BlqSource(), FledglingSource(), KibitzerSource(), LackpySource()]
+        return [
+            BlqSource(),
+            FledglingSource(),
+            JetsamSource(),
+            KibitzerSource(),
+            LackpySource(),
+        ]
 
     def _publish_recommendation(self) -> None:
         """Write the trust-informed recommendation to .kibitzer/state.json.

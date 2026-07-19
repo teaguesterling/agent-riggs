@@ -59,8 +59,13 @@ Riggs identifies two types of promotion candidates:
 
 | Candidate Type | Criteria | Action |
 |---|---|---|
-| **Tool promotion** | Bash pattern frequency ≥ 5, sessions ≥ 3, success_rate ≥ 0.8, structured alternative exists | Promote bash to structured tool |
+| **Nudged tool promotion** | Enough kibitzer A/B nudge trials AND measured heed rate AND heed lift over the control arm (frequency alone never qualifies) | Escalate the kibitzer interceptor (`[plugins.X] mode` suggest → redirect) via human-gated `ratchet promote` |
 | **Constraint promotion** | Repeated failures at same boundary (category + tool + mode) ≥ 3 occurrences | Tighten or document constraint |
+
+Tool promotions are gated on *causal* evidence from kibitzer's nudge A/B
+experiment (`~/.kibitzer/nudge_trials.jsonl`), not raw bypass frequency —
+a bypass pattern that fires constantly but is never heeded is surfaced as
+evidence in the briefing yet never becomes a candidate.
 
 ### Sandbox Intelligence
 If `blq` is installed, Riggs integrates sandbox profiling data to recommend resource tightening. Tracks memory and duration percentiles across runs.
@@ -73,7 +78,10 @@ Computes and trends:
 - Failure rate trends
 
 ### Session Briefing
-Riggs composes session briefings from trust, ratchet, and metrics data — helping agents understand what happened and why.
+Riggs composes session briefings from trust, ingest, ratchet, and metrics data — what happened recently per source (builds/tests via blq, git workflow via jetsam, tool usage via fledgling, intercepted bypasses via kibitzer), the nudge A/B evidence and whether anything qualifies for promotion, known failure patterns, and pending candidates.
+
+### Incremental Ingest
+Every source tracks a high-water mark (a JSON cursor in the `ingest_state` table), so `agent-riggs ingest` only reads new data on each run — re-running is fast and idempotent, which keeps the SessionStart hook well under its time budget.
 
 ## Architecture
 
@@ -92,7 +100,7 @@ The CLI and MCP server are thin shells that auto-discover and compose from regis
 | Plugin | Responsibility |
 |---|---|
 | **trust** | Event scoring, EWMA, trust windows, transition recommendations |
-| **ingest** | Discover and read events from sibling tools (kibitzer, blq, jetsam, fledgling) |
+| **ingest** | Discover and read events from sibling tools (kibitzer, blq, jetsam, fledgling, lackpy) plus kibitzer nudge trials; incremental via per-source cursors |
 | **ratchet** | Identify promotion candidates, track decisions, manage promotions |
 | **sandbox** | Integrate blq profiling, generate tightening recommendations |
 | **metrics** | Compute ratchet velocity, trends, self-service ratio |
@@ -181,19 +189,25 @@ loosening_threshold_t5 = 0.8
 loosening_window_turns = 20
 
 [ratchet]
-tool_promotion_freq = 5
-tool_promotion_sessions = 3
-tool_promotion_success_rate = 0.8
-constraint_promotion_occurrences = 3
+min_frequency = 5
+min_sessions = 3
+min_success_rate = 0.8
+lookback_days = 30
+# Heed gate for nudged tool promotions (kibitzer A/B evidence)
+min_nudge_trials = 5
+min_heed_rate = 0.25
+min_heed_lift = 0.0
 
 [sandbox]
 # blq integration (optional)
 enabled = true
 
 [metrics]
-# Trend detection windows
-velocity_period_days = 30
-trend_window_turns = 50
+default_period_days = 30
+
+[briefing]
+lookback_days = 14
+top_tools = 5
 
 [store]
 path = ".riggs/store.duckdb"

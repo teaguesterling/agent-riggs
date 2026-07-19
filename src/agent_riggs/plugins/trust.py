@@ -26,9 +26,12 @@ TRUST_DDL = [
         trust_5         DOUBLE,
         trust_15        DOUBLE,
         event_category  VARCHAR,
-        metadata        JSON
+        metadata        JSON,
+        source          VARCHAR
     )
     """,
+    # Migration for stores created before the source column existed.
+    "ALTER TABLE turns ADD COLUMN IF NOT EXISTS source VARCHAR",
     """
     CREATE TABLE IF NOT EXISTS failure_stream (
         failure_id       BIGINT PRIMARY KEY,

@@ -19,25 +19,29 @@ from agent_riggs.cli import main
 
 
 def _seed_tool_candidate(project: Path) -> None:
-    """Seed turns rows that produce a tool_promotion (capability-expanding) candidate."""
+    """Seed nudge trials producing a nudged_tool_promotion (capability-expanding) candidate."""
     service = assemble(project)
     base = datetime.now(UTC) - timedelta(days=1)
-    for i in range(6):
+    trial_id = 50000
+    # Nudge arm: 8 trials, 6 heeded (75%) across 3 sessions.
+    for i in range(8):
+        heed = i < 6
         service.store.execute(
-            """INSERT INTO turns (turn_id, session_id, project, turn_number, timestamp,
-                   tool_name, tool_success, mode, trust_score, trust_1, trust_5, trust_15,
-                   event_category, metadata)
-               VALUES (?, ?, ?, ?, ?, 'Bash', true, 'implement', 1.0, 0.9, 0.9, 0.9,
-                       'success', ?)""",
-            [
-                50000 + i,
-                f"sess-{i % 3}",
-                project.name,
-                i,
-                base + timedelta(minutes=i),
-                json.dumps({"command": "pytest tests/"}),
-            ],
+            """INSERT INTO nudge_trials (trial_id, plugin, arm, heed, turns_to_heed,
+                   session_id, ts)
+               VALUES (?, 'squackit', 'nudge', ?, ?, ?, ?)""",
+            [trial_id, heed, 1 if heed else None, f"sess-{i % 3}", base + timedelta(minutes=i)],
         )
+        trial_id += 1
+    # Control arm: 4 trials, none heeded -> positive lift.
+    for i in range(4):
+        service.store.execute(
+            """INSERT INTO nudge_trials (trial_id, plugin, arm, heed, turns_to_heed,
+                   session_id, ts)
+               VALUES (?, 'squackit', 'control', false, NULL, ?, ?)""",
+            [trial_id, f"sess-{i % 3}", base + timedelta(minutes=10 + i)],
+        )
+        trial_id += 1
     service.store.close()
 
 
@@ -62,12 +66,13 @@ def _accrue_observed_trust(project: Path, n: int = 40) -> None:
     from agent_riggs.config import load_config
     from agent_riggs.ingest.pipeline import ingest
     from agent_riggs.ingest.sources.blq import BlqSource
+    from agent_riggs.plugins.ingest import INGEST_DDL
     from agent_riggs.plugins.trust import TRUST_DDL
     from agent_riggs.store import Store
 
     config = load_config(project)
     with Store(project / ".riggs" / "store.duckdb") as store:
-        store.ensure_schema(TRUST_DDL)
+        store.ensure_schema(TRUST_DDL + INGEST_DDL)
         ingest(store=store, project_root=project, sources=[BlqSource()], trust_config=config.trust)
 
 
@@ -77,8 +82,10 @@ def test_promote_tool_candidate_denied_without_verified_trust(tmp_project: Path)
     try:
         ratchet = service.plugin("ratchet")
         candidates = ratchet.candidates()
-        keys = [c.candidate_key for c in candidates if c.candidate_type == "tool_promotion"]
-        assert keys, "expected a tool_promotion candidate"
+        keys = [
+            c.candidate_key for c in candidates if c.candidate_type == "nudged_tool_promotion"
+        ]
+        assert keys, "expected a nudged_tool_promotion candidate"
 
         with pytest.raises(PermissionError):
             ratchet.promote(keys[0])
@@ -96,7 +103,9 @@ def test_promote_tool_candidate_allowed_with_verified_trust(tmp_project: Path) -
     try:
         ratchet = service.plugin("ratchet")
         keys = [
-            c.candidate_key for c in ratchet.candidates() if c.candidate_type == "tool_promotion"
+            c.candidate_key
+            for c in ratchet.candidates()
+            if c.candidate_type == "nudged_tool_promotion"
         ]
         assert keys
         ratchet.promote(keys[0], reason="verified trust")

@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 from pathlib import Path
 
 from agent_riggs.ingest.sources.lackpy import LackpySource
 from agent_riggs.trust.events import EventCategory
 
 
-def _write_traces(project: Path, entries: list[dict]) -> None:
+def _write_traces(project: Path, entries: list[dict], append: bool = False) -> None:
     lpy_dir = project / ".lackpy"
     lpy_dir.mkdir(exist_ok=True)
-    with (lpy_dir / "traces.jsonl").open("w") as f:
+    mode = "a" if append else "w"
+    with (lpy_dir / "traces.jsonl").open(mode) as f:
         for entry in entries:
             f.write(json.dumps(entry) + "\n")
 
@@ -38,9 +38,9 @@ def test_successful_template_delegation(tmp_project: Path) -> None:
             }
         ],
     )
-    events = LackpySource().read_events(tmp_project, since=None)
-    assert len(events) == 1
-    assert events[0].event_category == EventCategory.SUCCESS
+    batch = LackpySource().read_events(tmp_project, cursor=None)
+    assert len(batch.events) == 1
+    assert batch.events[0].event_category == EventCategory.SUCCESS
 
 
 def test_successful_model_delegation_is_suboptimal(tmp_project: Path) -> None:
@@ -56,9 +56,9 @@ def test_successful_model_delegation_is_suboptimal(tmp_project: Path) -> None:
             }
         ],
     )
-    events = LackpySource().read_events(tmp_project, since=None)
-    assert len(events) == 1
-    assert events[0].event_category == EventCategory.SUBOPTIMAL
+    batch = LackpySource().read_events(tmp_project, cursor=None)
+    assert len(batch.events) == 1
+    assert batch.events[0].event_category == EventCategory.SUBOPTIMAL
 
 
 def test_failed_delegation(tmp_project: Path) -> None:
@@ -74,12 +74,12 @@ def test_failed_delegation(tmp_project: Path) -> None:
             }
         ],
     )
-    events = LackpySource().read_events(tmp_project, since=None)
-    assert len(events) == 1
-    assert events[0].event_category == EventCategory.FAILURE
+    batch = LackpySource().read_events(tmp_project, cursor=None)
+    assert len(batch.events) == 1
+    assert batch.events[0].event_category == EventCategory.FAILURE
 
 
-def test_respects_since(tmp_project: Path) -> None:
+def test_cursor_makes_reads_incremental(tmp_project: Path) -> None:
     _write_traces(
         tmp_project,
         [
@@ -87,6 +87,18 @@ def test_respects_since(tmp_project: Path) -> None:
             {"timestamp": "2026-03-31T10:00:00Z", "success": True, "generation_tier": "rules"},
         ],
     )
-    since = datetime(2026, 3, 31, tzinfo=UTC)
-    events = LackpySource().read_events(tmp_project, since=since)
-    assert len(events) == 1
+    source = LackpySource()
+    first = source.read_events(tmp_project, cursor=None)
+    assert len(first.events) == 2
+    assert first.cursor == {"trace_lines": 2}
+
+    second = source.read_events(tmp_project, first.cursor)
+    assert second.events == []
+
+    _write_traces(
+        tmp_project,
+        [{"timestamp": "2026-04-01T10:00:00Z", "success": True, "generation_tier": "rules"}],
+        append=True,
+    )
+    third = source.read_events(tmp_project, second.cursor)
+    assert len(third.events) == 1

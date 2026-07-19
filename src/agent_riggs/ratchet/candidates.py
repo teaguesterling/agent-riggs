@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import duckdb
+
 
 @dataclass
 class Candidate:
@@ -15,37 +17,88 @@ class Candidate:
     recommendation: str
 
 
-def find_tool_candidates(store, project, config):
-    cutoff = datetime.now(UTC) - timedelta(days=config.lookback_days)
-    rows = store.execute(
-        """
-        SELECT metadata, count(*) AS frequency, count(DISTINCT session_id) AS sessions,
-               round(avg(CASE WHEN tool_success THEN 1.0 ELSE 0.0 END), 2) AS success_rate
-        FROM turns WHERE project = ? AND tool_name = 'Bash'
-          AND timestamp > ?
-        GROUP BY metadata HAVING count(*) >= ? AND count(DISTINCT session_id) >= ?
-        ORDER BY frequency DESC""",
-        [project, cutoff, config.min_frequency, config.min_sessions],
-    ).fetchall()
+def nudge_heed_summary(store) -> list[dict[str, Any]]:
+    """Per-plugin A/B evidence from kibitzer nudge trials.
+
+    Each trial is one eligible bypass: the nudge arm shows whether a
+    suggestion changes behavior; the control arm shows the base rate.
+    Returns every evaluated plugin (qualifying or not) so the gate is
+    inspectable — but only `find_nudge_candidates` surfaces candidates.
+    """
+    try:
+        rows = store.execute(
+            """
+            SELECT plugin,
+                   count(*) FILTER (WHERE arm IN ('nudge', 'control')) AS trials,
+                   count(DISTINCT session_id) AS sessions,
+                   count(*) FILTER (WHERE arm = 'nudge') AS nudges,
+                   count(*) FILTER (WHERE arm = 'nudge' AND heed) AS nudges_heeded,
+                   count(*) FILTER (WHERE arm = 'control') AS controls,
+                   count(*) FILTER (WHERE arm = 'control' AND heed) AS controls_heeded
+            FROM nudge_trials
+            GROUP BY plugin
+            ORDER BY trials DESC
+            """
+        ).fetchall()
+    except duckdb.Error:
+        # No nudge_trials table (store predates it, or no trials file) —
+        # degrade gracefully: no evidence, no candidates.
+        return []
+
+    summary = []
+    for plugin, trials, sessions, nudges, nudges_heeded, controls, controls_heeded in rows:
+        heed_rate = nudges_heeded / nudges if nudges else 0.0
+        control_rate = controls_heeded / controls if controls else 0.0
+        summary.append(
+            {
+                "plugin": plugin,
+                "trials": trials,
+                "sessions": sessions,
+                "nudges": nudges,
+                "nudges_heeded": nudges_heeded,
+                "heed_rate": round(heed_rate, 2),
+                "controls": controls,
+                "controls_heeded": controls_heeded,
+                "control_heed_rate": round(control_rate, 2),
+                "lift": round(heed_rate - control_rate, 2),
+            }
+        )
+    return summary
+
+
+def find_nudge_candidates(store, project, config):
+    """Tool-promotion candidates gated on *measured* heed, never frequency.
+
+    A plugin's nudge frequency (how often its bypass fires) says nothing
+    about whether escalating it changes behavior — that's the
+    correlation/causation gap. The gate requires:
+      - enough nudge-arm trials (min_nudge_trials),
+      - a measured heed rate (min_heed_rate),
+      - heed lift over the control arm (min_heed_lift).
+    A plugin with 1000 bypasses and zero heeded nudges never surfaces.
+    """
     candidates = []
-    for row in rows:
-        metadata_str, frequency, sessions, success_rate = row
-        if success_rate < config.min_success_rate:
+    for s in nudge_heed_summary(store):
+        # Frequency leg: necessary but never sufficient.
+        if s["trials"] < config.min_frequency or s["sessions"] < config.min_sessions:
             continue
-        alternative = _find_alternative(metadata_str)
-        if alternative is None:
+        # Causal leg: measured heed and lift — the actual gate.
+        if s["nudges"] < config.min_nudge_trials:
+            continue
+        if s["heed_rate"] < config.min_heed_rate:
+            continue
+        if s["lift"] < config.min_heed_lift:
             continue
         candidates.append(
             Candidate(
-                candidate_type="tool_promotion",
-                candidate_key=f"bash-to-{alternative.lower().replace(' ', '-')}",
-                evidence={
-                    "frequency": frequency,
-                    "sessions": sessions,
-                    "success_rate": success_rate,
-                    "command_pattern": metadata_str,
-                },
-                recommendation=f"Graduate {alternative} interceptor",
+                candidate_type="nudged_tool_promotion",
+                candidate_key=f"nudge-{s['plugin']}",
+                evidence=s,
+                recommendation=(
+                    f"Escalate kibitzer [plugins.{s['plugin']}] mode suggest -> redirect: "
+                    f"heed {s['heed_rate']:.0%} vs control {s['control_heed_rate']:.0%} "
+                    f"(lift {s['lift']:+.0%}, n={s['nudges']} nudges)"
+                ),
             )
         )
     return candidates
@@ -88,19 +141,6 @@ def find_constraint_candidates(store, project, config):
             )
         )
     return candidates
-
-
-def _find_alternative(metadata_str):
-    s = metadata_str.lower()
-    if "grep" in s and ("def " in s or "class " in s):
-        return "FindDefinitions"
-    if "pytest" in s:
-        return "blq run test"
-    if "git add" in s and "git commit" in s:
-        return "jetsam save"
-    if "git push" in s:
-        return "jetsam sync"
-    return None
 
 
 def _constraint_recommendation(category, tool, mode):

@@ -49,6 +49,11 @@ class RatchetConfig:
     min_sessions: int = 3
     min_success_rate: float = 0.8
     lookback_days: int = 30
+    # Heed gate for nudged tool promotions (kibitzer A/B evidence).
+    # Frequency alone never qualifies a candidate.
+    min_nudge_trials: int = 5
+    min_heed_rate: float = 0.25
+    min_heed_lift: float = 0.0
 
 
 @dataclass
@@ -65,6 +70,12 @@ class MetricsConfig:
 
 
 @dataclass
+class BriefingConfig:
+    lookback_days: int = 14
+    top_tools: int = 5
+
+
+@dataclass
 class StoreConfig:
     path: str = ".riggs/store.duckdb"
 
@@ -75,6 +86,7 @@ class RiggsConfig:
     ratchet: RatchetConfig = field(default_factory=RatchetConfig)
     sandbox: SandboxConfig = field(default_factory=SandboxConfig)
     metrics: MetricsConfig = field(default_factory=MetricsConfig)
+    briefing: BriefingConfig = field(default_factory=BriefingConfig)
     store: StoreConfig = field(default_factory=StoreConfig)
 
 
@@ -136,5 +148,6 @@ def load_config(project_root: Path) -> RiggsConfig:
         ratchet=_dict_to_dataclass(RatchetConfig, merged.get("ratchet", {})),
         sandbox=_dict_to_dataclass(SandboxConfig, merged.get("sandbox", {})),
         metrics=_dict_to_dataclass(MetricsConfig, merged.get("metrics", {})),
+        briefing=_dict_to_dataclass(BriefingConfig, merged.get("briefing", {})),
         store=_dict_to_dataclass(StoreConfig, merged.get("store", {})),
     )

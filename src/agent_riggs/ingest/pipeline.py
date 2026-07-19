@@ -1,5 +1,9 @@
 """Ingest pipeline: discover sources, read events, score, record, store.
 
+Ingest is incremental: each source's high-water mark (an opaque JSON cursor)
+is persisted per (project, source) in the ingest_state table, so re-running
+ingest only reads new data.
+
 Integrity model:
 
 * The authoritative trust state is the out-of-tree, HMAC-chained
@@ -11,7 +15,8 @@ Integrity model:
   ``allow_increase=False``: they can hold or lower trust, never raise it.
 * Ingest is idempotent: each event carries a stable ``event_uid`` and events
   already present in the ledger are skipped, so replaying ``ingest`` (or
-  re-reading the same logs) cannot re-count evidence.
+  re-reading the same logs) cannot re-count evidence. Cursors are a
+  performance layer on top; the ledger is the correctness layer.
 * Events are applied in timestamp order across all sources, so the result
   does not depend on source iteration order.
 * If the ledger fails verification, ingest refuses to run
@@ -28,7 +33,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from agent_riggs.config import TrustConfig
-from agent_riggs.ingest.sources.base import Source
+from agent_riggs.ingest.sources.base import Cursor, Source
+from agent_riggs.ingest.sources.nudge_trials import NudgeTrialsSource
 from agent_riggs.store import Store
 from agent_riggs.trust.events import EventCategory, Provenance, TurnEvent
 from agent_riggs.trust.ewma import TrustEWMA
@@ -55,6 +61,7 @@ class IngestResult:
     turns_ingested: int = 0
     failures_recorded: int = 0
     duplicates_skipped: int = 0
+    trials_ingested: int = 0
     sources_read: list[str] = field(default_factory=list)
 
 
@@ -92,10 +99,10 @@ def ingest(
     project_root: Path,
     sources: list[Source],
     trust_config: TrustConfig,
-    since: object | None = None,
+    trials_source: NudgeTrialsSource | None = None,
     ledger: TrustLedger | None = None,
 ) -> IngestResult:
-    """Pull events from all discovered sources, score, record, and store."""
+    """Pull new events from all discovered sources, score, record, and store."""
     result = IngestResult()
     project = project_root.name
 
@@ -112,11 +119,15 @@ def ingest(
     next_turn_id = _next_id(store, "turns", "turn_id")
 
     pending: list[tuple[str, TurnEvent]] = []
+    cursors: dict[str, Cursor] = {}
     for source in sources:
         if not source.discover(project_root):
             continue
         result.sources_read.append(source.name)
-        for event in source.read_events(project_root, since):
+        cursor = _load_cursor(store, project, source.name)
+        batch = source.read_events(project_root, cursor)
+        cursors[source.name] = batch.cursor
+        for event in batch.events:
             pending.append((source.name, event))
 
     # Apply in timestamp order so results don't depend on source order.
@@ -146,24 +157,82 @@ def ingest(
             observed=observed,
             timestamp=event.timestamp,
         )
-        _store_turn(store, turn_id, project, event, score, t1, t5, t15)
+        _store_turn(store, turn_id, project, source_name, event, score, t1, t5, t15)
         result.turns_ingested += 1
 
         if event.event_category in _FAILURE_CATEGORIES:
             _store_failure(store, turn_id, project, event, score)
             result.failures_recorded += 1
 
+    # Cursors advance only after all new events were applied, so a failed
+    # run re-reads its data (the ledger's uid dedup makes replays safe).
+    for source_name, cursor in cursors.items():
+        _save_cursor(store, project, source_name, cursor)
+
+    if trials_source is not None and trials_source.discover(project_root):
+        result.trials_ingested = _ingest_trials(store, project, trials_source)
+        if result.trials_ingested or trials_source.name not in result.sources_read:
+            result.sources_read.append(trials_source.name)
+
     return result
 
 
-def _store_turn(store, turn_id, project, event, score, t1, t5, t15):
+def _ingest_trials(store: Store, project: str, source: NudgeTrialsSource) -> int:
+    cursor = _load_cursor(store, project, source.name)
+    trials, new_cursor = source.read_trials(cursor)
+
+    next_trial_id = _next_id(store, "nudge_trials", "trial_id")
+    for trial in trials:
+        store.execute(
+            """
+            INSERT INTO nudge_trials (trial_id, plugin, arm, heed, turns_to_heed,
+                session_id, ts)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                next_trial_id,
+                trial.plugin,
+                trial.arm,
+                trial.heed,
+                trial.turns_to_heed,
+                trial.session_id,
+                trial.ts,
+            ],
+        )
+        next_trial_id += 1
+
+    _save_cursor(store, project, source.name, new_cursor)
+    return len(trials)
+
+
+def _load_cursor(store: Store, project: str, source: str) -> Cursor | None:
+    row = store.execute(
+        "SELECT cursor FROM ingest_state WHERE project = ? AND source = ?",
+        [project, source],
+    ).fetchone()
+    if row and row[0]:
+        return json.loads(row[0])
+    return None
+
+
+def _save_cursor(store: Store, project: str, source: str, cursor: Cursor) -> None:
+    store.execute(
+        """
+        INSERT OR REPLACE INTO ingest_state (project, source, cursor, last_ingested_at)
+        VALUES (?, ?, ?, ?)
+        """,
+        [project, source, json.dumps(cursor), datetime.now(UTC)],
+    )
+
+
+def _store_turn(store, turn_id, project, source, event, score, t1, t5, t15):
     store.execute(
         """
         INSERT INTO turns (
             turn_id, session_id, project, turn_number, timestamp,
             tool_name, tool_success, mode, trust_score,
-            trust_1, trust_5, trust_15, event_category, metadata
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            trust_1, trust_5, trust_15, event_category, metadata, source
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             turn_id,
@@ -180,6 +249,7 @@ def _store_turn(store, turn_id, project, event, score, t1, t5, t15):
             t15,
             event.event_category.value,
             json.dumps(event.metadata),
+            source,
         ],
     )
 

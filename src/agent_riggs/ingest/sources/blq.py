@@ -13,6 +13,7 @@ from pathlib import Path
 
 import duckdb
 
+from agent_riggs.ingest.sources.base import Cursor, SourceBatch
 from agent_riggs.trust.events import EventCategory, Provenance, TurnEvent
 
 
@@ -22,16 +23,25 @@ class BlqSource:
     def discover(self, project_root: Path) -> bool:
         return (project_root / ".bird" / "blq.duckdb").exists()
 
-    def read_events(self, project_root: Path, since: datetime | None) -> list[TurnEvent]:
+    def read_events(self, project_root: Path, cursor: Cursor | None) -> SourceBatch:
         db_path = project_root / ".bird" / "blq.duckdb"
         if not db_path.exists():
-            return []
+            return SourceBatch(cursor=dict(cursor or {}))
+
+        since = None
+        max_ts = (cursor or {}).get("max_timestamp")
+        if max_ts:
+            since = datetime.fromisoformat(max_ts)
 
         conn = duckdb.connect(str(db_path), read_only=True)
         try:
-            return self._query_invocations(conn, since)
+            events = self._query_invocations(conn, since)
         finally:
             conn.close()
+
+        if events:
+            max_ts = max(e.timestamp for e in events).isoformat()
+        return SourceBatch(events=events, cursor={"max_timestamp": max_ts})
 
     def _query_invocations(
         self, conn: duckdb.DuckDBPyConnection, since: datetime | None
@@ -45,7 +55,7 @@ class BlqSource:
         """
         params: list = []
         if since:
-            query += " AND timestamp >= ?"
+            query += " AND timestamp > ?"
             params.append(since)
         query += " ORDER BY timestamp ASC"
 

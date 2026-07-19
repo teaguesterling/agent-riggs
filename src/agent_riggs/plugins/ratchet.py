@@ -7,10 +7,11 @@ from typing import TYPE_CHECKING
 from agent_riggs.ratchet.aggregator import failure_summary
 from agent_riggs.ratchet.candidates import (
     find_constraint_candidates,
-    find_tool_candidates,
+    find_nudge_candidates,
+    nudge_heed_summary,
 )
 from agent_riggs.ratchet.history import get_history
-from agent_riggs.ratchet.promotions import record_decision
+from agent_riggs.ratchet.promotions import apply_nudge_promotion, record_decision
 
 if TYPE_CHECKING:
     pass
@@ -52,14 +53,18 @@ class RatchetPlugin:
         project = self.service.project_root.name
         config = self.service.config.ratchet
         store = self.service.store
-        return find_tool_candidates(store, project, config) + find_constraint_candidates(
+        return find_nudge_candidates(store, project, config) + find_constraint_candidates(
             store, project, config
         )
+
+    def heed_summary(self):
+        """All evaluated nudge-trial evidence, including non-qualifying plugins."""
+        return nudge_heed_summary(self.service.store)
 
     def promote(self, key, reason=None):
         for c in self.candidates():
             if c.candidate_key == key:
-                if c.candidate_type == "tool_promotion":
+                if c.candidate_type in ("tool_promotion", "nudged_tool_promotion"):
                     # Capability-expanding: consult the fail-closed trust gate.
                     # (Constraint promotions tighten and are never gated.)
                     from agent_riggs.trust.gate import TrustGate
@@ -69,7 +74,12 @@ class RatchetPlugin:
                         raise PermissionError(
                             f"trust gate denied promotion of {key!r}: {decision.reason}"
                         )
-                record_decision(self.service.store, c, "promoted", reason)
+                config_change = None
+                if c.candidate_type == "nudged_tool_promotion":
+                    config_change = apply_nudge_promotion(
+                        self.service.project_root, c.evidence["plugin"]
+                    )
+                record_decision(self.service.store, c, "promoted", reason, config_change)
                 return
         raise KeyError(f"No candidate with key: {key}")
 

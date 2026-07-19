@@ -32,6 +32,7 @@ from agent_riggs.config import load_config
 from agent_riggs.ingest.pipeline import ingest
 from agent_riggs.ingest.sources.blq import BlqSource
 from agent_riggs.ingest.sources.kibitzer import KibitzerSource
+from agent_riggs.plugins.ingest import INGEST_DDL
 from agent_riggs.plugins.trust import TRUST_DDL
 from agent_riggs.store import Store
 
@@ -104,7 +105,7 @@ def _write_blq_db(project: Path, exit_codes: list[int]) -> None:
 def _ingest(project: Path, sources: list[Any]) -> Any:
     config = load_config(project)
     with Store(project / ".riggs" / "store.duckdb") as store:
-        store.ensure_schema(TRUST_DDL)
+        store.ensure_schema(TRUST_DDL + INGEST_DDL)
         return ingest(
             store=store,
             project_root=project,

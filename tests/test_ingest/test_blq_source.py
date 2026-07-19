@@ -57,26 +57,34 @@ def test_discover_when_absent(tmp_project):
 def test_successful_command(tmp_project):
     _create_blq_db(tmp_project)
     _insert_invocation(tmp_project, "pytest tests/ -x", 0, source_name="test")
-    events = BlqSource().read_events(tmp_project, since=None)
-    assert len(events) == 1
-    assert events[0].event_category == EventCategory.SUCCESS
-    assert events[0].tool_success is True
+    batch = BlqSource().read_events(tmp_project, cursor=None)
+    assert len(batch.events) == 1
+    assert batch.events[0].event_category == EventCategory.SUCCESS
+    assert batch.events[0].tool_success is True
 
 
 def test_failed_command(tmp_project):
     _create_blq_db(tmp_project)
     _insert_invocation(tmp_project, "pytest tests/ -x", 1, source_name="test")
-    events = BlqSource().read_events(tmp_project, since=None)
-    assert len(events) == 1
-    assert events[0].event_category == EventCategory.FAILURE
-    assert events[0].tool_success is False
+    batch = BlqSource().read_events(tmp_project, cursor=None)
+    assert len(batch.events) == 1
+    assert batch.events[0].event_category == EventCategory.FAILURE
+    assert batch.events[0].tool_success is False
 
 
-def test_respects_since(tmp_project):
+def test_cursor_makes_reads_incremental(tmp_project):
     _create_blq_db(tmp_project)
     _insert_invocation(tmp_project, "pytest", 0, ts=datetime(2026, 3, 30, tzinfo=UTC))
+    source = BlqSource()
+
+    first = source.read_events(tmp_project, cursor=None)
+    assert len(first.events) == 1
+
+    # Nothing new: cursor excludes already-seen invocations.
+    second = source.read_events(tmp_project, first.cursor)
+    assert second.events == []
+
     _insert_invocation(tmp_project, "pytest", 1, ts=datetime(2026, 3, 31, tzinfo=UTC))
-    since = datetime(2026, 3, 31, tzinfo=UTC)
-    events = BlqSource().read_events(tmp_project, since=since)
-    assert len(events) == 1
-    assert events[0].event_category == EventCategory.FAILURE
+    third = source.read_events(tmp_project, second.cursor)
+    assert len(third.events) == 1
+    assert third.events[0].event_category == EventCategory.FAILURE

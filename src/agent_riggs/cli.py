@@ -80,6 +80,8 @@ def ingest() -> None:
     click.echo(f"Ingested {result.turns_ingested} turns from {result.sources_read}")
     if result.duplicates_skipped:
         click.echo(f"Skipped {result.duplicates_skipped} already-recorded events")
+    if result.trials_ingested:
+        click.echo(f"Ingested {result.trials_ingested} nudge trials")
     if result.failures_recorded:
         click.echo(f"Recorded {result.failures_recorded} failures")
 
